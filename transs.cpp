@@ -45,8 +45,8 @@ int main(int argc, char* argv[]) {
   }
   std::ostream& out = (fname_output != "" ? ofs : std::cout);
 
-
-
+  //TODO gaussian kernel density estimation per PC -> p(frame, PC)
+  //TODO compute transfer entropy from PC I->J
 
   return EXIT_SUCCESS;
 }

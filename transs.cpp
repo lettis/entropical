@@ -38,13 +38,26 @@ int main(int argc, char* argv[]) {
   if (nthreads > 0) {
     omp_set_num_threads(nthreads);
   }
+  Tools::IO::set_out(args["output"].as<std::string>()); 
   std::string fname_input = args["input"].as<std::string>();
-  std::string fname_output = args["output"].as<std::string>();
 
-  Tools::IO::set_out(fname_output);
-  Tools::IO::out() << "hallo welt" << std::endl;
-  //TODO gaussian kernel density estimation per PC -> p(frame, PC)
-  //TODO compute transfer entropy from PC I->J
+  //TODO open coords
+
+  //TODO filter selected PCs
+
+  // TODO probability definition over PCs
+  //        (e.g. gaussian kernel density estimation per PC -> p(frame, PC))
+  // TODO combined probability: P(x_n+1, x_n, y_n)
+  // TODO combined probability: P(x_n+1, x_n)  -> P(x_n+1 | x_n) via Bayes
+
+  // kernel density estimation:
+  // f_h(x) = 1/(nh) \sum_i^n  K((x-x_i)/h)
+
+  // gaussian kernel:
+  //   K(x) = 1/sqrt(2pi) exp(-0.5 x^2)
+
+  // Silverman's rule of thumb:
+  //   h = 1.06 \sigma n^(-1/5)
 
   return EXIT_SUCCESS;
 }

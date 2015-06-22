@@ -43,8 +43,8 @@ int main(int argc, char* argv[]) {
 
   Tools::IO::set_out(fname_output);
   Tools::IO::out() << "hallo welt" << std::endl;
-
-
+  //TODO gaussian kernel density estimation per PC -> p(frame, PC)
+  //TODO compute transfer entropy from PC I->J
 
   return EXIT_SUCCESS;
 }

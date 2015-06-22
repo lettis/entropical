@@ -5,6 +5,7 @@
 #include <omp.h>
 
 #include "coords_file/coords_file.hpp"
+#include "tools.hpp"
 
 int main(int argc, char* argv[]) {
   namespace po = boost::program_options;
@@ -39,12 +40,9 @@ int main(int argc, char* argv[]) {
   }
   std::string fname_input = args["input"].as<std::string>();
   std::string fname_output = args["output"].as<std::string>();
-  std::ofstream ofs;
-  if (fname_output != "") {
-    ofs.open(fname_output);
-  }
-  std::ostream& out = (fname_output != "" ? ofs : std::cout);
 
+  Tools::IO::set_out(fname_output);
+  Tools::IO::out() << "hallo welt" << std::endl;
 
 
 

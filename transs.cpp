@@ -12,7 +12,7 @@ int main(int argc, char* argv[]) {
   po::variables_map args;
   po::options_description opts(std::string(argv[0]).append(
     "\n\n"
-    "compute transfer entropies between principal components."));
+    "compute transfer entropies between principal components"));
   opts.add_options()
     // required options
     ("input,i", po::value<std::string>()->required(), "principal components (required).")

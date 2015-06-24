@@ -23,7 +23,6 @@ int main(int argc, char* argv[]) {
     ("pc-ids", po::value<std::vector<unsigned int>>(), "PC ids")
     // optional parameters
     ("output,o", po::value<std::string>()->default_value(""), "output file (default: stdout)")
-    ("covmatrix,C", po::value<std::string>(), "PCA covariance matrix (for PC sigmas)")
     ("nthreads,n", po::value<unsigned int>()->default_value(0), "number of parallel threads (default: 0 == read from OMP_NUM_THREADS)")
     ("help,h", po::bool_switch()->default_value(false), "show this help.");
   // option parsing, settings, checks
@@ -58,57 +57,29 @@ int main(int argc, char* argv[]) {
     std::sort(pcs.begin(), pcs.end());
   }
 
-  // read/compute sigmas and N_frames for bandwidth (h) selection
-  std::vector<double> sigmas(n_pcs);
-  std::size_t n_frames=0;
-  if (args.count("covmatrix")) {
-    // load sigmas from covariance matrix
-    {
-      CoordsFile::FilePointer fh = CoordsFile::open(args["covmatrix"].as<std::string>(), "r");
-      // list principal components in base-1.
-      std::size_t pc=1;
-      std::size_t i_next_pc=0;
-      while ( ! fh->eof()) {
-        std::vector<float> line = fh->next();
-        if (line.size() > 0) {
-          if (pc == pcs[i_next_pc]) {
-            // sigma_i = sqrt(cov_{ii})
-            sigmas.push_back(sqrt(line[pc-1]));
-            ++i_next_pc;
-            if (i_next_pc >= n_pcs) {
-              break;
-            }
-          }
-          ++pc;
-        }
-      }
-    }
-    // count N_frames
-    {
-      CoordsFile::FilePointer fh = CoordsFile::open(fname_input, "r");
-      while ( ! fh->eof()) {
-        std::vector<float> frame = fh->next();
-        if (frame.size() > 0) {
-          ++n_frames;
-        }
-      }
-    }
-  } else {
-    // no covariance matrix available: compute sigmas from principal components directly
+  // read frames of principal components and compute sigmas for bandwidth (h) selection
+  std::map<std::size_t, double> sigmas;
+  std::map<std::size_t, std::vector<double>> frames;
+  std::size_t n_frames = 0;
+  {
     using namespace boost::accumulators;
     using VarAcc = accumulator_set<double, features<tag::variance(lazy)>>;
     CoordsFile::FilePointer fh = CoordsFile::open(fname_input, "r");
     std::vector<VarAcc> acc(n_pcs);
+    for (std::size_t pc: pcs) {
+      frames[pc] = {};
+    }
     while ( ! fh->eof()) {
       std::vector<float> frame = fh->next();
       if (frame.size() > 0) {
         ++n_frames;
-        for (std::size_t i=0; i < n_pcs; ++i) {
-          acc[i](frame[pcs[i]-1]);
+        for (std::size_t pc: pcs) {
+          acc[pc](frame[pc-1]);
+          frames[pc].push_back(frame[pc-1]);
         }
       }
     }
-    // collect results
+    // collect resulting sigmas from accumulators
     for (std::size_t i=0; i < n_pcs; ++i) {
       sigmas[i] = sqrt(variance(acc[i]));
     }
@@ -123,16 +94,24 @@ int main(int argc, char* argv[]) {
   //
   std::vector<double> h;
   double n_frames_scaled = std::pow(n_frames, -0.2);
-  for (double sigma: sigmas) {
-    h.push_back(1.06 * sigma * n_frames_scaled);
+  for (auto pc_sigma: sigmas) {
+    h.push_back(1.06 * pc_sigma.second * n_frames_scaled);
   }
 
 
 
   // TODO probability definition over PCs
   //        (e.g. gaussian kernel density estimation per PC -> p(frame, PC))
+ 
   // TODO combined probability: P(x_n+1, x_n, y_n)
-  // TODO combined probability: P(x_n+1, x_n)  -> P(x_n+1 | x_n) via Bayes
+  //        3D Gaussian Kernel
+  
+  // TODO combined probability: P(x_n+1, x_n)
+  //        2D Gaussian Kernel or Bayes from 1D Gaussian of P(y_n) and P(x_n+1, x_n, y_n)
+
+
+  // multivariate product kernel:
+  //  kernel_density_estimation.pdf : p25
 
   // kernel density estimation:
   // f_h(x) = 1/(nh) \sum_i^n  K((x-x_i)/h)

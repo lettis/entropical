@@ -1,0 +1,145 @@
+\documentclass[12pt,a4paper,twoside,english,fleqn,preprint,aps,prb]{revtex4}
+\usepackage[T1]{fontenc}
+\usepackage[latin9]{inputenc}
+\setlength{\parskip}{\medskipamount}
+\setlength{\parindent}{0pt}
+\usepackage{tikz}
+\usetikzlibrary{arrows,shapes,positioning,decorations.pathreplacing}
+\usepackage{standalone}
+\usepackage{rotating}
+\usepackage{units}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amstext}
+\usepackage{mathrsfs}
+
+\usepackage{graphicx}
+\usepackage{caption}
+%\usepackage{wrapfig}
+
+\usepackage{amssymb}
+\usepackage{esint}
+\usepackage{babel}
+\usepackage{array}
+
+% needed for placing figures the right way %
+\usepackage{float}
+\usepackage{color}
+
+\newcommand{\florian}[1] { \emph{ {\color{red}Florian: #1} } }
+\newcommand{\gerhard}[1] { \emph{ {\color{blue}Gerhard: #1} } }
+
+\newcommand{\dirfig}{imgs}
+
+%\makeatletter
+
+%\textwidth16cm
+\textwidth18cm
+\textheight23cm
+\hoffset-1.5cm
+%\voffset-1.5cm
+\setlength{\oddsidemargin}{0.3cm}
+\setlength{\evensidemargin}{0.3cm}
+%\setlength{\oddsidemargin}{1.6cm}
+%\setlength{\evensidemargin}{0.6cm}
+%\renewcommand{\arraystretch}{0.5}
+
+%\makeatother
+
+\newcommand{\bm}{\boldmath}
+\newcommand{\halb}{\frac{1}{2}}
+\newcommand{\be}{\begin{equation*}}
+\newcommand{\ee}{\end{equation*}}
+\newcommand{\Tr}[2]{{\rm Tr}_{\rm #1}\left\{ #2 \right\}}
+
+
+\newcommand{\F}{\mathbf{F}}
+\newcommand{\rr}{\mathbf{r}}
+\newcommand{\vv}{\mathbf{v}}
+\newcommand{\pp}{\mathbf{p}}
+\newcommand{\xx}{\mathbf{x}}
+\newcommand{\qq}{\mathbf{q}}
+\newcommand{\MU}{\boldsymbol{\mu}}
+\newcommand{\RR}{\mathbf{R}}
+\newcommand{\oft}{\left(t\right)}
+%\newcommand{\unit}[1]{\ensuremath{\, \mathrm{#1}}}
+\newcommand{\atantwo}{\text{atan2}}
+
+\newcommand{\T}[1]{\text{#1}}
+
+
+
+% macro definitions
+\global\long\def\inftyint{\int_{-\infty}^{\infty}}
+\global\long\def\bra#1{\left\langle #1\right|}
+\global\long\def\ket#1{\left|#1\right\rangle }
+\global\long\def\tr{\text{tr}}
+% end macro definitions
+
+% define codelisting environment
+\newenvironment{codelisting}
+{\begin{list}{}{\setlength{\leftmargin}{1em}}\item\bfseries}
+{\end{list}}
+% end definition
+
+
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+\begin{document}
+
+\author{Florian Sittel, Gerhard Stock} 
+\affiliation{Biomolecular Dynamics, Institute of Physics, Albert Ludwigs
+ University, 79104 Freiburg, Germany}
+\title{Analyzing Principal Component Interdependence\\ using Transfer Entropy Estimation}
+\date{\today}
+
+% no page break after title
+\begingroup
+ \let\clearpage\relax
+ \maketitle
+\endgroup
+
+\tableofcontents
+\clearpage
+
+
+\section{Introduction}
+\begin{itemize}
+  \item Theoretical background
+  \item Examples
+        \begin{itemize}
+          \item HP-35
+        \end{itemize}
+\end{itemize}
+
+
+\section{Theory}
+
+Product Kernel:
+\begin{align}
+  \hat{f}(\xx) &= \frac{1}{n h_1 \dots h_d} \sum_{i=1}^{n}\left[ \prod_{j=1}^{d} K\left(\frac{x_i - r_{ij}}{h_j} \right)\right],
+\end{align}
+with $\rr$ all data points.
+
+Schreiber:
+\begin{align}
+  T_{J \rightarrow I} &= \sum p(i_{n+1}, i_n, j_n) \log \left[p(i_{n+1} \vert i_n, j_n) / p(i_{n+1} \vert i_n) \right].
+\end{align}
+
+Alternative by Vicente2011:
+\begin{align}
+  T_{J \rightarrow I} &= S(i_n, j_n) - S(i_{n+1}, i_n, j_n) + S(i_{n+1}, i_n) - S(i_n),
+\end{align}
+with Shannon entropy $S$.
+
+
+Entropy estimation will be based on fine-grained histograms of differential entropies of continuous probability density functions.
+These will be estimated by Gaussian kernel density estimators of the 3D space spanned by the first PC, the time-delayed first PC
+and the second PC.
+
+
+
+\bibliography{stock,md,new}
+
+\end{document}

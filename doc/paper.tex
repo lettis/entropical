@@ -116,9 +116,14 @@
 
 \section{Theory}
 
+Gaussian Kernel:
+\begin{align}
+  K(u) &= \frac{1}{\sqrt{2\pi}} \exp(-\frac{1}{2} u^2)
+\end{align}
+
 Product Kernel:
 \begin{align}
-  \hat{f}(\xx) &= \frac{1}{n h_1 \dots h_d} \sum_{i=1}^{n}\left[ \prod_{j=1}^{d} K\left(\frac{x_i - r_{ij}}{h_j} \right)\right],
+  \hat{f}(\xx) &= \frac{1}{n h_1 \dots h_d} \sum_{i=1}^{n}\left[ \prod_{j=1}^{d} K\left(\frac{x_j - r_{ij}}{h_j} \right)\right],
 \end{align}
 with $\rr$ all data points.
 

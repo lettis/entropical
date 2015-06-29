@@ -62,6 +62,7 @@ int main(int argc, char* argv[]) {
   std::map<std::size_t, std::vector<double>> frames;
   std::size_t n_frames = 0;
   {
+    std::cout << "reading frames" << std::endl;
     using namespace boost::accumulators;
     using VarAcc = accumulator_set<double, features<tag::variance(lazy)>>;
     CoordsFile::FilePointer fh = CoordsFile::open(fname_input, "r");
@@ -80,10 +81,16 @@ int main(int argc, char* argv[]) {
       }
     }
     // collect resulting sigmas from accumulators
+    std::ofstream ofs("sigmas.dat");
     for (std::size_t i=0; i < n_pcs; ++i) {
       sigmas[i] = sqrt(variance(acc[i]));
+      ofs << i << " " << sigmas[i] << "\n";
     }
   }
+
+
+  // TODO estimate grid box size for fast NN search
+
 
   // bandwidth selection based on
   // Silverman's rule of thumb:
@@ -92,11 +99,11 @@ int main(int argc, char* argv[]) {
   //
   // TODO use Scott's rule for multi-dimensional spaces!
   //
-  std::vector<double> h;
-  double n_frames_scaled = std::pow(n_frames, -0.2);
-  for (auto pc_sigma: sigmas) {
-    h.push_back(1.06 * pc_sigma.second * n_frames_scaled);
-  }
+//  std::vector<double> h;
+//  double n_frames_scaled = std::pow(n_frames, -0.2);
+//  for (auto pc_sigma: sigmas) {
+//    h.push_back(1.06 * pc_sigma.second * n_frames_scaled);
+//  }
 
 
 

@@ -93,9 +93,6 @@ int main(int argc, char* argv[]) {
   //    h.push_back(pc_sigma.second * scotts_factor);
   //  }
 
-    // TODO estimate grid box size for fast NN search
-
-
     // TODO probability definition over PCs
     //        (e.g. gaussian kernel density estimation per PC -> p(frame, PC))
    

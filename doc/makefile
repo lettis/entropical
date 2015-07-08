@@ -4,8 +4,8 @@ VIEW=evince
 
 all:
 	$(LTX) -shell-escape -draftmode paper
-#	$(BIB) paper
-#	$(LTX) -shell-escape -draftmode paper
+	$(BIB) paper
+	$(LTX) -shell-escape -draftmode paper
 	$(LTX) -shell-escape paper
 
 view: all

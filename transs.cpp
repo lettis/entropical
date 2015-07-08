@@ -11,6 +11,7 @@
 
 #include "coords_file/coords_file.hpp"
 #include "tools.hpp"
+#include "statistics.hpp"
 
 int main(int argc, char* argv[]) {
   namespace po = boost::program_options;
@@ -51,8 +52,13 @@ int main(int argc, char* argv[]) {
     } else {
       std::sort(pcs.begin(), pcs.end());
     }
+
+    //TODO: map -> vector  & translation table
+
+
     // read frames of principal components and compute sigmas for bandwidth (h) selection
     std::map<std::size_t, double> sigmas;
+    std::map<std::size_t, double> bandwidths;
     std::map<std::size_t, std::vector<double>> frames;
     std::size_t n_frames = 0;
     {
@@ -79,19 +85,26 @@ int main(int argc, char* argv[]) {
       }
       std::cerr << "  finished" << std::endl;
       // collect resulting sigmas from accumulators
-      std::ofstream ofs("sigmas.dat");
+      std::ofstream ofs_sigma("sigmas.dat");
+      std::ofstream ofs_bandwidth("bandwidths.dat");
+      // compute multivariate bandwidths (h_i) by Scott's rule of thumb
+      const double scott_factor = std::pow(n_frames, -1.0/((double) (n_pcs+4)));
       for (std::size_t i=0; i < n_pcs; ++i) {
         sigmas[i] = sqrt(variance((*acc[i])));
-        ofs << sigmas[i] << "\n";
+        bandwidths[i] = sigmas[i] * scott_factor;
+        ofs_sigma << sigmas[i] << "\n";
+        ofs_bandwidth << bandwidths[i] << "\n";
       }
     }
 
-  // TODO scott's rule for bandwidth selection
-  //  std::vector<double> h;
-  //  double scotts_factor = 
-  //  for (auto pc_sigma: sigmas) {
-  //    h.push_back(pc_sigma.second * scotts_factor);
-  //  }
+    //TODO normalized N-dim histogram from PDFs
+    // for every bin:
+    //    compute local prob density (estimate pdf at bin center)
+    // normalize grid
+
+    //TODO entropy from (histograms of) multivariate PDFs
+    // S = \sum p log(p)
+
 
     // TODO probability definition over PCs
     //        (e.g. gaussian kernel density estimation per PC -> p(frame, PC))
@@ -102,15 +115,8 @@ int main(int argc, char* argv[]) {
     // TODO combined probability: P(x_n+1, x_n)
     //        2D Gaussian Kernel or Bayes from 1D Gaussian of P(y_n) and P(x_n+1, x_n, y_n)
 
-
     // multivariate product kernel:
     //  kernel_density_estimation.pdf : p25
-
-    // kernel density estimation:
-    // f_h(x) = 1/(nh) \sum_i^n  K((x-x_i)/h)
-
-    // gaussian kernel:
-    //   K(x) = 1/sqrt(2pi) exp(-0.5 x^2)
 
   } catch (const boost::bad_any_cast& e) {
     if ( ! args["help"].as<bool>()) {

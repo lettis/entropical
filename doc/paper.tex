@@ -186,21 +186,25 @@ which usually gives satisfying results.
 
 The joint probabilities in (\ref{eq:T}) are thus properly estimated by
 \begin{align}
-  \hat{p}(x_{n+\tau}, x_n, y_n) &= \frac{N^{-4/7}}{(2\pi)^{3/2} \hat{\sigma}_x^2 \hat{\sigma}_y} \sum_{i=1}^N \exp \left(-\frac{1}{2} \left[
+  \hat{p}(x_{n+\tau}, x_n, y_n) &= \frac{N^{-4/7}}{(2\pi)^{3/2} \hat{\sigma}_x^2 \hat{\sigma}_y} \underbrace{\sum_{i=1}^N \exp \left(-\frac{1}{2} \left[
                                        \frac{(x_{n+\tau}-x_i)^2 + (x_n - x_i)^2}{N^{-2/7}\hat{\sigma}_x^2} + \frac{(y_n - y_i)^2}{N^{-2/7}\hat{\sigma}_y^2}
-                                   \right] \right)  \\
-  \hat{p}(x_n, y_n) &= \frac{N^{-5/7}}{2\pi \hat{\sigma}_x \hat{\sigma}_y} \sum_{i=1}^N \exp \left(-\frac{1}{2} \left[
+                                 \right] \right)}_{\Sigma_{xxy}}  \\
+                                 \hat{p}(x_n, y_n) &= \frac{N^{-5/7}}{2\pi \hat{\sigma}_x \hat{\sigma}_y} \underbrace{\sum_{i=1}^N \exp \left(-\frac{1}{2} \left[
                                        \frac{(x_n - x_i)^2}{N^{-2/7}\hat{\sigma}_x^2} + \frac{(y_n - y_i)^2}{N^{-2/7}\hat{\sigma}_y^2}
-                                   \right] \right)  \\
-  \hat{p}(x_{n+\tau}, x_n) &= \frac{N^{-5/7}}{2\pi \hat{\sigma}_x^2} \sum_{i=1}^N \exp \left(-\frac{1}{2} \left[
+                                 \right] \right)}_{\Sigma_{xy}}  \\
+                                 \hat{p}(x_{n+\tau}, x_n) &= \frac{N^{-5/7}}{2\pi \hat{\sigma}_x^2} \underbrace{\sum_{i=1}^N \exp \left(-\frac{1}{2} \left[
                                        \frac{(x_{n+\tau} - x_i)^2 + (x_n - x_i)^2}{N^{-2/7}\hat{\sigma}_x^2}
-                                   \right] \right)  \\
-  \hat{p}(x_n) &= \frac{N^{-6/7}}{(2\pi)^{-1/2} \hat{\sigma}_x} \sum_{i=1}^N \exp \left(-\frac{1}{2} \left[
+                                 \right] \right) }_{\Sigma_{xx}} \\
+                                   \hat{p}(x_n) &= \frac{N^{-6/7}}{(2\pi)^{-1/2} \hat{\sigma}_x} \underbrace{\sum_{i=1}^N \exp \left(-\frac{1}{2} \left[
                                        \frac{(x_n - x_i)^2}{N^{-2/7}\hat{\sigma}_x^2}
-                                   \right] \right).
+                                 \right] \right)}_{\Sigma_{x}}.
 \end{align}
 
-
+Using these definitions, the estimated transfer entropy from $Y$ to $X$ is given by
+\begin{align}
+  \hat{T}_{Y \rightarrow X}^{\tau} &= \frac{N^{-4/7}}{(2\pi)^{3/2}\sigma_x^2 \sigma_y}
+                                        \sum_{n=1}^{N-\tau} \Sigma_{xxy} \log\left(2\pi \frac{\Sigma_{xxy} \Sigma_{x}}{\Sigma_{xy} \Sigma_{xx}} \right).
+\end{align}
 
 
 \bibliography{stock,md,new}

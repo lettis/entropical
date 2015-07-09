@@ -9,9 +9,7 @@
 #include <boost/accumulators/statistics/variance.hpp>
 #include <omp.h>
 
-#include "coords_file/coords_file.hpp"
 #include "tools.hpp"
-#include "statistics.hpp"
 
 int main(int argc, char* argv[]) {
   namespace po = boost::program_options;
@@ -23,8 +21,8 @@ int main(int argc, char* argv[]) {
     opts.add_options()
       // required options
       ("input,i", po::value<std::string>()->required(), "principal components (required).")
-      ("pc-ids", po::value<std::vector<unsigned int>>()->required(), "PC ids (required)")
       // optional parameters
+      ("pcmax", po::value<unsigned int>()->default_value(-1), "max. PC to read (default: 0 == read all)")
       ("output,o", po::value<std::string>()->default_value(""), "output file (default: stdout)")
       ("nthreads,n", po::value<unsigned int>()->default_value(0), "number of parallel threads (default: 0 == read from OMP_NUM_THREADS)")
       ("help,h", po::bool_switch()->default_value(false), "show this help.");
@@ -44,58 +42,45 @@ int main(int argc, char* argv[]) {
     }
     Tools::IO::set_out(args["output"].as<std::string>()); 
     std::string fname_input = args["input"].as<std::string>();
-    std::vector<unsigned int> pcs = args["pc-ids"].as<std::vector<unsigned int>>();
-    std::size_t n_pcs = pcs.size();
-    if (n_pcs < 2) {
+    unsigned int pc_max = args["pc_max"].as<unsigned int>();
+    if (pc_max == 1) {
       std::cerr << "error: need at least two PCs to compute information transfer" << std::endl;
       return EXIT_FAILURE;
-    } else {
-      std::sort(pcs.begin(), pcs.end());
     }
 
-    //TODO: map -> vector  & translation table
 
 
-    // read frames of principal components and compute sigmas for bandwidth (h) selection
-    std::map<std::size_t, double> sigmas;
-    std::map<std::size_t, double> bandwidths;
-    std::map<std::size_t, std::vector<double>> frames;
-    std::size_t n_frames = 0;
-    {
-      using namespace boost::accumulators;
-      using VarAcc = accumulator_set<double, features<tag::variance(lazy)>>;
-      std::vector<std::shared_ptr<VarAcc>> acc(n_pcs);
-      for (std::size_t i=0; i < n_pcs; ++i) {
-        acc[i] = std::shared_ptr<VarAcc>(new VarAcc);
-      }
-      std::cerr << "reading frames" << std::endl;
-      CoordsFile::FilePointer fh = CoordsFile::open(fname_input, "r");
-      for (std::size_t pc: pcs) {
-        frames[pc] = {};
-      }
-      while ( ! fh->eof()) {
-        std::vector<float> frame = fh->next();
-        if (frame.size() > 0) {
-          ++n_frames;
-          for (std::size_t pc: pcs) {
-            (*acc[pc-1])(frame[pc-1]);
-            frames[pc].push_back(frame[pc-1]);
-          }
-        }
-      }
-      std::cerr << "  finished" << std::endl;
-      // collect resulting sigmas from accumulators
-      std::ofstream ofs_sigma("sigmas.dat");
-      std::ofstream ofs_bandwidth("bandwidths.dat");
-      // compute multivariate bandwidths (h_i) by Scott's rule of thumb
-      const double scott_factor = std::pow(n_frames, -1.0/((double) (n_pcs+4)));
-      for (std::size_t i=0; i < n_pcs; ++i) {
-        sigmas[i] = sqrt(variance((*acc[i])));
-        bandwidths[i] = sigmas[i] * scott_factor;
-        ofs_sigma << sigmas[i] << "\n";
-        ofs_bandwidth << bandwidths[i] << "\n";
-      }
-    }
+
+    // read frames of principal components and compute sigmas for every dimension
+//    std::vector<double> sigmas;
+//    std::vector<std::vector<double>> frames;
+//    std::size_t n_frames = 0;
+//    {
+//      using namespace boost::accumulators;
+//      using VarAcc = accumulator_set<double, features<tag::variance(lazy)>>;
+//      std::vector<std::shared_ptr<VarAcc>> acc(n_pcs);
+//      for (std::size_t i=0; i < n_pcs; ++i) {
+//        acc[i] = std::shared_ptr<VarAcc>(new VarAcc);
+//      }
+//      CoordsFile::FilePointer fh = CoordsFile::open(fname_input, "r");
+//      for (std::size_t pc: pcs) {
+//        frames[pc] = {};
+//      }
+//      while ( ! fh->eof()) {
+//        std::vector<float> frame = fh->next();
+//        if (frame.size() > 0) {
+//          ++n_frames;
+//          for (std::size_t pc: pcs) {
+//            (*acc[pc-1])(frame[pc-1]);
+//            frames[pc].push_back(frame[pc-1]);
+//          }
+//        }
+//      }
+//      // collect resulting sigmas from accumulators
+//      for (std::size_t i=0; i < n_pcs; ++i) {
+//        sigmas[i] = sqrt(variance((*acc[i])));
+//      }
+//    }
 
     //TODO normalized N-dim histogram from PDFs
     // for every bin:

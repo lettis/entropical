@@ -5,6 +5,19 @@
 #include <string>
 #include <vector>
 
+/// needed for aligned memory allocation for Xeon Phi, SSE or AVX
+#if defined(__INTEL_COMPILER)
+ #include <malloc.h>
+#else
+ #include <mm_malloc.h>
+#endif
+
+#if defined(__INTEL_COMPILER)
+  #define ASSUME_ALIGNED(c) __assume_aligned( (c), DC_MEM_ALIGNMENT)
+#else
+  #define ASSUME_ALIGNED(c) (c) = (float*) __builtin_assume_aligned( (c), DC_MEM_ALIGNMENT)
+#endif
+
 namespace Tools {
 namespace String {
   /**
@@ -110,9 +123,24 @@ namespace IO {
    */
   void
   set_in(std::string fname);
-
+  /**
+   * read coordinates from space-separated ASCII file.
+   * will write data with precision of NUM-type into memory.
+   * format: [row * n_cols + col]
+   * return value: tuple of {data (unique_ptr<NUM> with custom deleter), n_rows (size_t), n_cols (size_t)}.
+   */
+  template <typename NUM>
+  std::tuple<NUM*, std::size_t, std::size_t>
+  read_coords(std::string filename,
+              std::vector<std::size_t> usecols = std::vector<std::size_t>());
+  /**
+   * free memory pointing to coordinates
+   */
+  template <typename NUM>
+  void
+  free_coords(NUM* coords);
 } // end namespace Tools::IO
-
-
 } // end namespace Tools
+
+#include "tools.hxx"
 

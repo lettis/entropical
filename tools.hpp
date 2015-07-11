@@ -5,6 +5,12 @@
 #include <string>
 #include <vector>
 
+
+// allocate memory (32 bit for SSE4_1, AVX)
+// TODO: define MEM_ALIGNMENT during cmake and
+//       set depending on usage of SSE2, SSE4_1, AVX or Xeon Phi
+#define MEM_ALIGNMENT 32
+
 /// needed for aligned memory allocation for Xeon Phi, SSE or AVX
 #if defined(__INTEL_COMPILER)
  #include <malloc.h>
@@ -13,12 +19,18 @@
 #endif
 
 #if defined(__INTEL_COMPILER)
-  #define ASSUME_ALIGNED(c) __assume_aligned( (c), DC_MEM_ALIGNMENT)
+  #define ASSUME_ALIGNED(c) __assume_aligned( (c), MEM_ALIGNMENT)
 #else
-  #define ASSUME_ALIGNED(c) (c) = (float*) __builtin_assume_aligned( (c), DC_MEM_ALIGNMENT)
+  #define ASSUME_ALIGNED(c) (c) = (double*) __builtin_assume_aligned( (c), MEM_ALIGNMENT)
 #endif
 
 namespace Tools {
+
+  template <typename NUM>
+  std::vector<NUM>
+  range(NUM from, NUM to, NUM step);
+
+
 namespace String {
   /**
    * return last n characters of str.
@@ -132,7 +144,8 @@ namespace IO {
   template <typename NUM>
   std::tuple<NUM*, std::size_t, std::size_t>
   read_coords(std::string filename,
-              std::vector<std::size_t> usecols = std::vector<std::size_t>());
+              char primary_index = 'R',
+              std::vector<std::size_t> usecols = {});
   /**
    * free memory pointing to coordinates
    */

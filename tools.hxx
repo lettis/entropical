@@ -1,9 +1,23 @@
 
+#include <iterator>
+#include <map>
+
 namespace Tools {
+
+  template <typename NUM>
+  std::vector<NUM>
+  range(NUM from, NUM to, NUM step) {
+    std::vector<NUM> result;
+    for (NUM i=from; i < to; i += step) {
+      result.push_back(i);
+    }
+    return result;
+  }
+
 namespace IO {
   template <typename NUM>
   std::tuple<NUM*, std::size_t, std::size_t>
-  read_coords(std::string filename, std::vector<std::size_t> usecols) {
+  read_coords(std::string filename, char primary_index, std::vector<std::size_t> usecols) {
     std::size_t n_rows=0;
     std::size_t n_cols=0;
     std::size_t n_cols_used=0;
@@ -48,10 +62,7 @@ namespace IO {
         col_used[i] = true;
       }
     }
-    // allocate memory
-    // DC_MEM_ALIGNMENT is defined during cmake and
-    // set depending on usage of SSE2, SSE4_1, AVX or Xeon Phi
-    NUM* coords = (NUM*) _mm_malloc(sizeof(NUM)*n_rows*n_cols_used, DC_MEM_ALIGNMENT);
+    NUM* coords = (NUM*) _mm_malloc(sizeof(NUM)*n_rows*n_cols_used, MEM_ALIGNMENT);
     ASSUME_ALIGNED(coords);
     // read data
     for (std::size_t cur_row = 0; cur_row < n_rows; ++cur_row) {
@@ -60,7 +71,13 @@ namespace IO {
         NUM buf;
         ifs >> buf;
         if (col_used[i]) {
-          coords[cur_row*n_cols_used + cur_col] = buf;
+          if (primary_index == 'R') {
+            // row-based matrix
+            coords[cur_row*n_cols_used + cur_col] = buf;
+          } else if (primary_index == 'C') {
+            // column-based matrix
+            coords[cur_col*n_rows + cur_row] = buf;
+          }
           ++cur_col;
         }
       }

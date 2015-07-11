@@ -6,6 +6,7 @@
 #include "tools.hpp"
 
 namespace Tools {
+
 namespace String {
 
   std::string

@@ -11,6 +11,8 @@
 
 #include "tools.hpp"
 
+#define POW2(X) X*X
+
 int main(int argc, char* argv[]) {
   namespace po = boost::program_options;
   po::variables_map args;
@@ -21,6 +23,7 @@ int main(int argc, char* argv[]) {
     opts.add_options()
       // required options
       ("input,i", po::value<std::string>()->required(), "principal components (required).")
+      ("tau,t", po::value<unsigned int>()->default_value(1), "lagtime (in # frames; default: 1).")
       // optional parameters
       ("pcmax", po::value<unsigned int>()->default_value(0), "max. PC to read (default: 0 == read all)")
       ("output,o", po::value<std::string>()->default_value(""), "output file (default: stdout)")
@@ -39,11 +42,17 @@ int main(int argc, char* argv[]) {
     if (nthreads > 0) {
       omp_set_num_threads(nthreads);
     }
+    // set output stream to file or STDOUT, depending on args
     Tools::IO::set_out(args["output"].as<std::string>()); 
     std::string fname_input = args["input"].as<std::string>();
     unsigned int pc_max = args["pcmax"].as<unsigned int>();
     if (pc_max == 1) {
       std::cerr << "error: need at least two PCs to compute information transfer" << std::endl;
+      return EXIT_FAILURE;
+    }
+    unsigned int tau = args["tau"].as<unsigned int>();
+    if (tau == 0) {
+      std::cerr << "error: a lagtime of 0 frames does not make sense." << std::endl;
       return EXIT_FAILURE;
     }
     // read coordinates
@@ -71,11 +80,55 @@ int main(int argc, char* argv[]) {
         sigmas[j] = sqrt(variance(acc));
       }
     }
-
-    
-
+    // compute transfer entropies
+    std::vector<std::vector<double>> T(n_cols, std::vector<double>(n_cols, 0.0));
+    {
+      std::size_t y, x, n, i;
+      double p_s_y, p_s_x;
+      double s_xxy, s_xy, s_xx, s_x;
+      double tmp_xn, tmp_xn_tau, tmp_yn;
+      #pragma omp parallel for default(none)\
+                               private(y,x,n,i,p_s_y,p_s_x,s_xxy,s_xy,s_xx,s_x,tmp_xn,tmp_xn_tau,tmp_yn)\
+                               firstprivate(n_cols,n_rows,tau)\
+                               shared(coords,sigmas,T)\
+                               collapse(2)
+      for (y=0; y < n_cols; ++y) {
+        for (x=0; x < n_cols; ++x) {
+          //  partial prefactors
+          p_s_y = -1.0 / (2*std::pow(n_rows, -2.0/7.0)*POW2(sigmas[y]));
+          p_s_x = -1.0 / (2*std::pow(n_rows, -2.0/7.0)*POW2(sigmas[x]));
+          // compute local sums for every frame n
+          for (n=0; n < n_rows-tau; ++n) {
+            // partial sums
+            s_xxy = 0.0;
+            s_xy = 0.0;
+            s_xx = 0.0;
+            s_x = 0.0;
+            // compute partial sums with fixed reference frame n
+            for (i=0; i < n_rows; ++i) {
+              tmp_xn = exp(p_s_x * POW2(coords[x*n_rows+n] - coords[x*n_rows+i]));
+              tmp_xn_tau = exp(p_s_x * POW2(coords[x*n_rows+n] - coords[x*n_rows+i]));
+              tmp_yn = exp(p_s_y * POW2(coords[y*n_rows+n] - coords[y*n_rows+i]));
+              s_xxy += tmp_xn_tau * tmp_xn * tmp_yn;
+              s_xy += tmp_xn * tmp_yn;
+              s_xx += tmp_xn * tmp_xn;
+              s_x += tmp_xn;
+            }
+            T[y][x] += s_xxy * log(2*M_PI * s_xxy * s_x / s_xy / s_xx);
+          }
+          T[y][x] *= std::pow(n_rows, -4.0/7.0) / (std::pow(2*M_PI, 3.0/2.0)*sigmas[x]*sigmas[x]*sigmas[y]);
+        }
+      }
+    }
     // clean up
     Tools::IO::free_coords(coords);
+    // output
+    for (std::size_t y=0; y < n_cols; ++y) {
+      for (std::size_t x=0; x < n_cols; ++x) {
+        Tools::IO::out() << " " << T[y][x];
+      }
+      Tools::IO::out() << "\n";
+    }
   } catch (const boost::bad_any_cast& e) {
     if ( ! args["help"].as<bool>()) {
       std::cerr << "\nerror parsing arguments!\n\n";

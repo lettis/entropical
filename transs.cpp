@@ -80,6 +80,15 @@ int main(int argc, char* argv[]) {
         sigmas[j] = sqrt(variance(acc));
       }
     }
+
+    // write bandwidths to file
+    {
+      std::ofstream ofs("bandwidths");
+      for (std::size_t x=0; x < n_cols; ++x) {
+        ofs << x << " " << bandwidth = std::pow(n_rows, -1.0/7.0)*sigmas[x] << "\n";
+      }
+    }
+
     // compute transfer entropies
     std::vector<std::vector<double>> T(n_cols, std::vector<double>(n_cols, 0.0));
     {

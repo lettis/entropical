@@ -27,6 +27,7 @@ int main(int argc, char* argv[]) {
       // optional parameters
       ("pcmax", po::value<unsigned int>()->default_value(0), "max. PC to read (default: 0 == read all)")
       ("output,o", po::value<std::string>()->default_value(""), "output file (default: stdout)")
+      ("bandwidths,b", po::value<std::string>()->default_value(""), "output bandwidths")
       ("nthreads,n", po::value<unsigned int>()->default_value(0), "number of parallel threads (default: 0 == read from OMP_NUM_THREADS)")
       ("help,h", po::bool_switch()->default_value(false), "show this help.");
     // option parsing, settings, checks
@@ -45,6 +46,7 @@ int main(int argc, char* argv[]) {
     // set output stream to file or STDOUT, depending on args
     Tools::IO::set_out(args["output"].as<std::string>()); 
     std::string fname_input = args["input"].as<std::string>();
+    std::string fname_bandwidths = args["bandwidths"].as<std::string>();
     unsigned int pc_max = args["pcmax"].as<unsigned int>();
     if (pc_max == 1) {
       std::cerr << "error: need at least two PCs to compute information transfer" << std::endl;
@@ -66,9 +68,12 @@ int main(int argc, char* argv[]) {
       // read only until given PC
       std::tie(coords, n_rows, n_cols) = Tools::IO::read_coords<double>(fname_input, 'C', Tools::range<std::size_t>(0, pc_max, 1));
     }
-    // compute sigmas for every dimension
+    // compute sigmas (and bandwidths) for every dimension
     std::vector<double> sigmas(n_cols);
+    std::vector<double> bandwidths(n_cols);
+    std::vector<std::pair<double, double>> min_max_values(n_cols);
     {
+      //TODO compute min/max per observable here
       using namespace boost::accumulators;
       using VarAcc = accumulator_set<double, features<tag::variance(lazy)>>;
       for (std::size_t j=0; j < n_cols; ++j) {
@@ -78,17 +83,27 @@ int main(int argc, char* argv[]) {
         }
         // collect resulting sigmas from accumulators
         sigmas[j] = sqrt(variance(acc));
+        bandwidths[j] = std::pow(n_rows, -1.0/7.0)*sigmas[x];
       }
     }
-
-    // write bandwidths to file
+    if (fname_bandwidths != "")
     {
-      std::ofstream ofs("bandwidths");
+      // write bandwidths to file
+      std::ofstream ofs(fname_bandwidths);
       for (std::size_t x=0; x < n_cols; ++x) {
-        ofs << x << " " << bandwidth = std::pow(n_rows, -1.0/7.0)*sigmas[x] << "\n";
+        ofs << x << " " << bandwidths(x) << "\n";
       }
     }
-
+    // compute box-grid for box-assisted NN search
+    //  box-size: 3*bandwidth
+    std::vector<std::vector<unsigned int>> boxes(n_cols, std::vector<unsigned int>(n_rows));
+    for (std::size_t x=0; x < n_cols; ++x) {
+      double dist = min_max_values[x].second - min_max_values[x].first;
+      int n_boxes = dist / (3*bandwidth[x]);
+      for (std::size_t i=0; i < n_rows; ++i) {
+        //TODO: sort into box
+      }
+    }
     // compute transfer entropies
     std::vector<std::vector<double>> T(n_cols, std::vector<double>(n_cols, 0.0));
     {
@@ -115,15 +130,20 @@ int main(int argc, char* argv[]) {
             s_x = 0.0;
             // compute partial sums with fixed reference frame n
             for (i=0; i < n_rows; ++i) {
-              tmp_xn = exp(p_s_x * POW2(coords[x*n_rows+n] - coords[x*n_rows+i]));
-              tmp_xn_tau = exp(p_s_x * POW2(coords[x*n_rows+n] - coords[x*n_rows+i]));
-              tmp_yn = exp(p_s_y * POW2(coords[y*n_rows+n] - coords[y*n_rows+i]));
-              s_xxy += tmp_xn_tau * tmp_xn * tmp_yn;
-              s_xy += tmp_xn * tmp_yn;
-              s_xx += tmp_xn * tmp_xn;
-              s_x += tmp_xn;
+              // TODO: buggy. finish! use box grid to take only local neighbors into account
+              if (std::abs(box_grid[y][i] - box_grid[x][i]) < 3) {
+                tmp_xn = exp(p_s_x * POW2(coords[x*n_rows+n] - coords[x*n_rows+i]));
+                tmp_xn_tau = exp(p_s_x * POW2(coords[x*n_rows+n] - coords[x*n_rows+i]));
+                tmp_yn = exp(p_s_y * POW2(coords[y*n_rows+n] - coords[y*n_rows+i]));
+                s_xxy += tmp_xn_tau * tmp_xn * tmp_yn;
+                s_xy += tmp_xn * tmp_yn;
+                s_xx += tmp_xn * tmp_xn;
+                s_x += tmp_xn;
+              }
             }
-            T[y][x] += s_xxy * log(2*M_PI * s_xxy * s_x / s_xy / s_xx);
+            if (s_xxy > 0.0 && s_x > 0.0) {
+              T[y][x] += s_xxy * log(2*M_PI * s_xxy * s_x / s_xy / s_xx);
+            }
           }
           T[y][x] *= std::pow(n_rows, -4.0/7.0) / (std::pow(2*M_PI, 3.0/2.0)*sigmas[x]*sigmas[x]*sigmas[y]);
         }

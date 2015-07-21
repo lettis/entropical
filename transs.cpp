@@ -4,6 +4,8 @@
 #include <boost/program_options.hpp>
 #include <vector>
 #include <algorithm>
+#include <limits>
+#include <cmath>
 #include <memory>
 #include <boost/accumulators/accumulators.hpp>
 #include <boost/accumulators/statistics/variance.hpp>
@@ -71,19 +73,21 @@ int main(int argc, char* argv[]) {
     // compute sigmas (and bandwidths) for every dimension
     std::vector<double> sigmas(n_cols);
     std::vector<double> bandwidths(n_cols);
-    std::vector<std::pair<double, double>> min_max_values(n_cols);
+    std::vector<double> col_min(n_cols, -std::numeric_limits<double>::infinity());
+    std::vector<double> col_max(n_cols,  std::numeric_limits<double>::infinity());
     {
-      //TODO compute min/max per observable here
       using namespace boost::accumulators;
       using VarAcc = accumulator_set<double, features<tag::variance(lazy)>>;
       for (std::size_t j=0; j < n_cols; ++j) {
         VarAcc acc;
         for (std::size_t i=0; i < n_rows; ++i) {
           acc(coords[j*n_rows+i]);
+          col_min[j] = std::min(col_min[j], coords[j*n_rows+i]);
+          col_max[j] = std::max(col_max[j], coords[j*n_rows+i]);
         }
         // collect resulting sigmas from accumulators
         sigmas[j] = sqrt(variance(acc));
-        bandwidths[j] = std::pow(n_rows, -1.0/7.0)*sigmas[x];
+        bandwidths[j] = std::pow(n_rows, -1.0/7.0)*sigmas[j];
       }
     }
     if (fname_bandwidths != "")
@@ -91,17 +95,22 @@ int main(int argc, char* argv[]) {
       // write bandwidths to file
       std::ofstream ofs(fname_bandwidths);
       for (std::size_t x=0; x < n_cols; ++x) {
-        ofs << x << " " << bandwidths(x) << "\n";
+        ofs << x << " " << bandwidths[x] << "\n";
       }
     }
     // compute box-grid for box-assisted NN search
     //  box-size: 3*bandwidth
     std::vector<std::vector<unsigned int>> boxes(n_cols, std::vector<unsigned int>(n_rows));
-    for (std::size_t x=0; x < n_cols; ++x) {
-      double dist = min_max_values[x].second - min_max_values[x].first;
-      int n_boxes = dist / (3*bandwidth[x]);
+    for (std::size_t j=0; j < n_cols; ++j) {
+      double edge_length = 3*bandwidths[j];
+      unsigned int n_boxes = 0;
       for (std::size_t i=0; i < n_rows; ++i) {
-        //TODO: sort into box
+        double dist = coords[j*n_rows+i] - col_min[j];
+        boxes[j][i] = (unsigned int) ceil(dist / edge_length);
+        if (boxes[j][i] > n_boxes) {
+          n_boxes = boxes[j][i];
+        }
+        std::cerr << "n boxes " << j << ": " << n_boxes << std::endl;
       }
     }
     // compute transfer entropies
@@ -114,7 +123,7 @@ int main(int argc, char* argv[]) {
       #pragma omp parallel for default(none)\
                                private(y,x,n,i,p_s_y,p_s_x,s_xxy,s_xy,s_xx,s_x,tmp_xn,tmp_xn_tau,tmp_yn)\
                                firstprivate(n_cols,n_rows,tau)\
-                               shared(coords,sigmas,T)\
+                               shared(boxes,coords,sigmas,T)\
                                collapse(2)
       for (y=0; y < n_cols; ++y) {
         for (x=0; x < n_cols; ++x) {
@@ -130,8 +139,8 @@ int main(int argc, char* argv[]) {
             s_x = 0.0;
             // compute partial sums with fixed reference frame n
             for (i=0; i < n_rows; ++i) {
-              // TODO: buggy. finish! use box grid to take only local neighbors into account
-              if (std::abs(box_grid[y][i] - box_grid[x][i]) < 3) {
+              // use box grid to take only local neighbors into account
+              if (std::abs(boxes[y][i] - boxes[x][i]) < 3) {
                 tmp_xn = exp(p_s_x * POW2(coords[x*n_rows+n] - coords[x*n_rows+i]));
                 tmp_xn_tau = exp(p_s_x * POW2(coords[x*n_rows+n] - coords[x*n_rows+i]));
                 tmp_yn = exp(p_s_y * POW2(coords[y*n_rows+n] - coords[y*n_rows+i]));

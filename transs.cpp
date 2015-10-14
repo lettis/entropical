@@ -13,7 +13,7 @@
 
 #include "tools.hpp"
 
-#define POW2(X) X*X
+#define POW2(X) (X)*(X)
 
 int main(int argc, char* argv[]) {
   namespace po = boost::program_options;
@@ -98,21 +98,6 @@ int main(int argc, char* argv[]) {
         ofs << x << " " << bandwidths[x] << "\n";
       }
     }
-    // compute box-grid for box-assisted NN search
-    //  box-size: 3*bandwidth
-    std::vector<std::vector<unsigned int>> boxes(n_cols, std::vector<unsigned int>(n_rows));
-    for (std::size_t j=0; j < n_cols; ++j) {
-      double edge_length = 3*bandwidths[j];
-      unsigned int n_boxes = 0;
-      for (std::size_t i=0; i < n_rows; ++i) {
-        double dist = coords[j*n_rows+i] - col_min[j];
-        boxes[j][i] = (unsigned int) ceil(dist / edge_length);
-        if (boxes[j][i] > n_boxes) {
-          n_boxes = boxes[j][i];
-        }
-      }
-      std::cerr << "n boxes " << j << ": " << n_boxes << std::endl;
-    }
     // compute transfer entropies
     std::vector<std::vector<double>> T(n_cols, std::vector<double>(n_cols, 0.0));
     {
@@ -123,12 +108,12 @@ int main(int argc, char* argv[]) {
       #pragma omp parallel for default(none)\
                                private(y,x,n,i,p_s_y,p_s_x,s_xxy,s_xy,s_xx,s_x,tmp_xn,tmp_xn_tau,tmp_yn)\
                                firstprivate(n_cols,n_rows,tau)\
-                               shared(boxes,coords,sigmas,T)\
+                               shared(coords,sigmas,T)\
                                collapse(2)
       for (y=0; y < n_cols; ++y) {
+        p_s_y = -1.0 / (2*std::pow(n_rows, -2.0/7.0)*POW2(sigmas[y]));
         for (x=0; x < n_cols; ++x) {
           //  partial prefactors
-          p_s_y = -1.0 / (2*std::pow(n_rows, -2.0/7.0)*POW2(sigmas[y]));
           p_s_x = -1.0 / (2*std::pow(n_rows, -2.0/7.0)*POW2(sigmas[x]));
           // compute local sums for every frame n
           for (n=0; n < n_rows-tau; ++n) {
@@ -139,20 +124,15 @@ int main(int argc, char* argv[]) {
             s_x = 0.0;
             // compute partial sums with fixed reference frame n
             for (i=0; i < n_rows; ++i) {
-              // use box grid to take only local neighbors into account
-              if (std::abs(boxes[y][i] - boxes[x][i]) < 3) {
-                tmp_xn = exp(p_s_x * POW2(coords[x*n_rows+n] - coords[x*n_rows+i]));
-                tmp_xn_tau = exp(p_s_x * POW2(coords[x*n_rows+n] - coords[x*n_rows+i]));
-                tmp_yn = exp(p_s_y * POW2(coords[y*n_rows+n] - coords[y*n_rows+i]));
-                s_xxy += tmp_xn_tau * tmp_xn * tmp_yn;
-                s_xy += tmp_xn * tmp_yn;
-                s_xx += tmp_xn * tmp_xn;
-                s_x += tmp_xn;
-              }
+              tmp_xn = exp(p_s_x * POW2(coords[x*n_rows+n] - coords[x*n_rows+i]));
+              tmp_xn_tau = exp(p_s_x * POW2(coords[x*n_rows+n+tau] - coords[x*n_rows+i]));
+              tmp_yn = exp(p_s_y * POW2(coords[y*n_rows+n] - coords[y*n_rows+i]));
+              s_xxy += tmp_xn_tau * tmp_xn * tmp_yn;
+              s_xy += tmp_xn * tmp_yn;
+              s_xx += tmp_xn * tmp_xn;
+              s_x += tmp_xn;
             }
-            if (s_xxy > 0.0 && s_x > 0.0) {
-              T[y][x] += s_xxy * log(2*M_PI * s_xxy * s_x / s_xy / s_xx);
-            }
+            T[y][x] += s_xxy * log(2*M_PI * s_xxy * s_x / s_xy / s_xx);
           }
           T[y][x] *= std::pow(n_rows, -4.0/7.0) / (std::pow(2*M_PI, 3.0/2.0)*sigmas[x]*sigmas[x]*sigmas[y]);
         }

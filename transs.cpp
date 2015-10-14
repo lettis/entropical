@@ -111,9 +111,9 @@ int main(int argc, char* argv[]) {
                                shared(coords,sigmas,T)\
                                collapse(2)
       for (y=0; y < n_cols; ++y) {
-        p_s_y = -1.0 / (2*std::pow(n_rows, -2.0/7.0)*POW2(sigmas[y]));
         for (x=0; x < n_cols; ++x) {
           //  partial prefactors
+          p_s_y = -1.0 / (2*std::pow(n_rows, -2.0/7.0)*POW2(sigmas[y]));
           p_s_x = -1.0 / (2*std::pow(n_rows, -2.0/7.0)*POW2(sigmas[x]));
           // compute local sums for every frame n
           for (n=0; n < n_rows-tau; ++n) {

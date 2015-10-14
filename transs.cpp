@@ -73,8 +73,8 @@ int main(int argc, char* argv[]) {
     // compute sigmas (and bandwidths) for every dimension
     std::vector<double> sigmas(n_cols);
     std::vector<double> bandwidths(n_cols);
-    std::vector<double> col_min(n_cols, -std::numeric_limits<double>::infinity());
-    std::vector<double> col_max(n_cols,  std::numeric_limits<double>::infinity());
+    std::vector<double> col_min(n_cols,  std::numeric_limits<double>::infinity());
+    std::vector<double> col_max(n_cols, -std::numeric_limits<double>::infinity());
     {
       using namespace boost::accumulators;
       using VarAcc = accumulator_set<double, features<tag::variance(lazy)>>;
@@ -110,8 +110,8 @@ int main(int argc, char* argv[]) {
         if (boxes[j][i] > n_boxes) {
           n_boxes = boxes[j][i];
         }
-        std::cerr << "n boxes " << j << ": " << n_boxes << std::endl;
       }
+      std::cerr << "n boxes " << j << ": " << n_boxes << std::endl;
     }
     // compute transfer entropies
     std::vector<std::vector<double>> T(n_cols, std::vector<double>(n_cols, 0.0));

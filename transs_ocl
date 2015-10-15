@@ -3,6 +3,7 @@
 import argparse
 import numpy as np
 import pyopencl as cl
+import pyopencl.array as cl_array
 import pandas as pd
 
 def to_array(fname, column):
@@ -42,37 +43,36 @@ n_rows = to_array(args.input_file, 0).size
 #     N_ROWS: number of rows in input (== to size of x and y)
 #     WGSIZE: local size, i.e. number of worker items in workgroup
 src_partial_sums = """
-  #define FLOAT float
   #define POW2(X) (X)*(X)
   #define TWO_PI 6.283185307179586
 
   __kernel void
   partial_sums(uint n
-             , FLOAT p_s_x
-             , FLOAT p_s_y
-             , __global const FLOAT* y
-             , __global const FLOAT* x
+             , float p_s_x
+             , float p_s_y
+             , __global const float* y
+             , __global const float* x
              , uint iy
              , uint ix
-             , __global FLOAT4* S
-             , __global FLOAT* T) {
-    __local FLOAT4 s_tmp[WGSIZE];
+             , __global float4* S
+             , __global float* T) {
+    __local float4 s_tmp[WGSIZE];
     int gid = get_global_id(0);
     if (gid < N_ROWS) {
       int lid = get_local_id(0);
       int wid = get_group_id(0);
       // retrieve data from global memory
-      FLOAT x_n = x[n];
-      FLOAT x_ntau = x[n+TAU];
-      FLOAT x_i = x[gid];
-      FLOAT y_n = y[n];
-      FLOAT y_i = y[gid];
+      float x_n = x[n];
+      float x_ntau = x[n+TAU];
+      float x_i = x[gid];
+      float y_n = y[n];
+      float y_i = y[gid];
       // compute local values
-      FLOAT tmp_yn = exp(p_s_y * POW2(y_n-y_i));
-      FLOAT s_x = exp(p_s_x * POW2(x_n-x_i));
-      FLOAT s_xxy = exp(p_s_x * POW2(x_ntau-x_i)) * s_x * tmp_yn;
-      FLOAT s_xy = s_x * tmp_yn;
-      FLOAT s_xx = POW2(s_x);
+      float tmp_yn = exp(p_s_y * POW2(y_n-y_i));
+      float s_x = exp(p_s_x * POW2(x_n-x_i));
+      float s_xxy = exp(p_s_x * POW2(x_ntau-x_i)) * s_x * tmp_yn;
+      float s_xy = s_x * tmp_yn;
+      float s_xx = POW2(s_x);
       s_tmp[lid] = (float4) (s_x, s_xxy, s_xy, s_xx);
       barrier(CLK_LOCAL_MEM_FENCE);
       // accumulate s-values locally
@@ -98,25 +98,58 @@ src_partial_sums = """
 prg = cl.Program(ctx, src_partial_sums).build(options=["-D", "TAU=%d" % args.tau
                                                      , "-D", "N_ROWS=%d" % n_rows
                                                      , "-D", "WGSIZE=%d" % args.wgsize])
-
-
-
-## compute transfer entropies
+knl_partial_sums = prg.partial_sums
+# memory handling
+n_workgroups = np.ceil(n_rows / args.wgsize)
+global_size = n_workgroups * args.wgsize
+T = np.zeros((args.pcmax, args.pcmax))
+T_correction_factors = np.zeros((args.pcmax, args.pcmax))
+T_final = np.zeros((args.pcmax, args.pcmax))
+T_buf = cl.Buffer(ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=T)
+knl_partial_sums.set_arg(8, T_buf)
+S = np.zeros(n_workgroups, dtype=cl_array.vec.float4)
+S_buf = cl.Buffer(ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=S)
+knl_partial_sums.set_arg(7, S_buf)
+y = np.zeros(n_rows)
+y_buf = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=y)
+knl_partial_sums.set_arg(3, y_buf)
+x = np.zeros(n_rows)
+x_buf = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=x)
+knl_partial_sums.set_arg(x, x_buf)
+# compute transfer entropies
 for iy in range(args.pcmax):
+  knl_partial_sums.set_arg(5, iy)
   y = to_array(args.input_file, iy)
+  for i_dev in range(n_devices):
+    cl.enqueue_copy(queues[i_dev], y_buf, y)
   sigma_y = np.sqrt(np.variance(y))
   p_s_y = -1.0 / (2*np.power(y.size, -2.0/7.0)*sigma_y**2);
-  # TODO: send y-data to devices
+  knl_partial_sums.set_arg(2, p_s_y)
   # separate ix-range into groups of IDs for multiple GPUs
   ix_ranges = [a.tolist() for a in np.array_split(np.arange(args.pcmax), n_devices)]
   while len(ix_ranges[0]) > 0:
     # distribute work to GPUs
     for i_dev in range(n_devices):
       if len(ix_ranges[i_dev]) > 0:
+        cl.enqueue_barrier(queues[i_dev])
         ix = ix_ranges[i_dev].pop()
-        x = to_array(args.input_file, iy)
+        knl_partial_sums.set_arg(6, ix)
+        x = to_array(args.input_file, ix)
+        cl.enqueue_copy(queues[i_dev], x_buf, x)
         sigma_x = np.sqrt(np.variance(x))
         p_s_x = -1.0 / (2*np.power(x.size, -2.0/7.0)*sigma_x**2);
-        # TODO: send x-data to devices
-        # TODO computation for this device
+        knl_partial_sums.set_arg(1, p_s_x)
+        for n in range(n_rows):
+          knl_partial_sums.set_arg(0, n)
+          cl.enqueue_nd_range_kernel(queues[i_dev], knl_partial_sums, global_size, wgsize)
+        T_correction_factors[iy][ix] = np.power(n_rows, -4.0/7.0) / (np.power(2*np.pi, 3.0/2.0) * sigma_x**2 * sigma_y)
+# retrieve results
+for i_dev in range(n_devices):
+  cl.enqueue_barrier(queues[i_dev])
+  cl.enqueue_copy(queues[i_dev], T, T_buf)
+  T_final += T
+for iy in range(args.pcmax):
+  for ix in range(args.pcmax):
+    T_final[iy][ix] *= T_correction_factors[iy][ix]
+np.savetxt("transs.out", T_final)
 

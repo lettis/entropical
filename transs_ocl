@@ -1,0 +1,102 @@
+#!/usr/bin/env python3
+
+import argparse
+import numpy as np
+import pyopencl as cl
+import pandas as pd
+
+parser = argparse.ArgumentParser("transs_ocl")
+parser.add_argument("-i", "--input", dest="input_file", required=True,
+                      help="input data; plain text, observables in columns, observations in rows.")
+parser.add_argument("--pcmax", dest="pcmax", type=int, default=2,
+                      help="max PC (i.e. observable) to take into account")
+parser.add_argument("-t", "--tau", dest="tau", type=int, default=1,
+                      help="tau value (lagtime; default: 1)")
+args = parser.parse_args()
+
+def to_array(fname, column):
+  """load column from file as numpy array"""
+  return np.array(
+            pd.read_table(fname
+                        , sep=" "
+                        , engine='c'
+                        , skipinitialspace=True
+                        , dtype=np.float64
+                        , usecols=(column,)
+                        , header=None)).flatten()
+
+## setup OpenCL
+mf = cl.mem_flags
+# one context for all GPUs
+devices = cl.get_platforms()[0].get_devices()
+n_devices = len(devices)
+ctx = cl.Context(devices)
+queues = [cl.CommandQueue(ctx, device=d) for d in devices]
+# TODO kernel partial_sums
+
+src_partial_sums = """
+
+  #define FLOAT float
+  #define POW2(X) (X)*(X)
+
+  __kernel void
+  partial_sums(unsigned int n
+             , FLOAT p_s_x
+             , FLOAT p_s_y
+             , int tau
+             , __global const FLOAT* y
+             , __global const FLOAT* x
+             , __global FLOAT* T) {
+    int gid = get_global_id(0);
+    int lid = get_local_id(0);
+    // retrieve data from global memory
+    FLOAT x_n = x[n];
+    FLOAT x_ntau = x[n+tau];
+    FLOAT x_i = x[gid];
+    FLOAT y_n = y[n];
+    FLOAT y_i = y[gid];
+    // compute local values
+    FLOAT tmp_yn = exp(p_s_y * POW2(y_n-y_i));
+    FLOAT s_x = exp(p_s_x * POW2(x_n-x_i));
+    FLOAT s_xxy = exp(p_s_x * POW2(x_ntau-x_i)) * s_x * tmp_yn;
+    FLOAT s_xy = s_x * tmp_yn;
+    FLOAT s_xx = POW2(s_x);
+    //TODO use float4 for s-values
+
+    // barrier local
+
+    // accumulate s-values locally
+
+    // barrier global
+
+    // accumulate s-values globally -> T
+
+  }
+"""
+
+
+
+
+# TODO kernel accumulate_T
+
+# TODO estimate local sizes from kernels
+
+## compute transfer entropies
+for iy in range(args.pcmax):
+  y = to_array(args.input_file, iy)
+  sigma_y = np.sqrt(np.variance(y))
+  p_s_y = -1.0 / (2*np.power(y.size, -2.0/7.0)*sigma_y**2);
+  # TODO: send y-data to devices
+  # separate ix-range into groups of IDs for multiple GPUs
+  ix_ranges = [a.tolist() for a in np.array_split(np.arange(args.pcmax), n_devices)]
+  while len(ix_ranges[0]) > 0:
+    # distribute work to GPUs
+    for i_dev in range(n_devices):
+      if len(ix_ranges[i_dev]) > 0:
+        ix = ix_ranges[i_dev].pop()
+        x = to_array(args.input_file, iy)
+        sigma_x = np.sqrt(np.variance(x))
+        p_s_x = -1.0 / (2*np.power(x.size, -2.0/7.0)*sigma_x**2);
+        # TODO: send x-data to devices
+        # TODO computation for this device
+

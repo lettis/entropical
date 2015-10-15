@@ -5,15 +5,6 @@ import numpy as np
 import pyopencl as cl
 import pandas as pd
 
-parser = argparse.ArgumentParser("transs_ocl")
-parser.add_argument("-i", "--input", dest="input_file", required=True,
-                      help="input data; plain text, observables in columns, observations in rows.")
-parser.add_argument("--pcmax", dest="pcmax", type=int, default=2,
-                      help="max PC (i.e. observable) to take into account")
-parser.add_argument("-t", "--tau", dest="tau", type=int, default=1,
-                      help="tau value (lagtime; default: 1)")
-args = parser.parse_args()
-
 def to_array(fname, column):
   """load column from file as numpy array"""
   return np.array(
@@ -25,6 +16,17 @@ def to_array(fname, column):
                         , usecols=(column,)
                         , header=None)).flatten()
 
+# command line parsing
+parser = argparse.ArgumentParser("transs_ocl")
+parser.add_argument("-i", "--input", dest="input_file", required=True,
+                      help="input data; plain text, observables in columns, observations in rows.")
+parser.add_argument("--pcmax", dest="pcmax", type=int, default=2,
+                      help="max PC (i.e. observable) to take into account")
+parser.add_argument("-t", "--tau", dest="tau", type=int, default=1,
+                      help="tau value (lagtime; default: 1)")
+parser.add_argument("--wgsize", dest="wgsize", type=int, default=128,
+                      help="number of work items in workgroup. tweak this to get optimal performance from OpenCL. (default: 128)")
+args = parser.parse_args()
 ## setup OpenCL
 mf = cl.mem_flags
 # one context for all GPUs
@@ -32,54 +34,72 @@ devices = cl.get_platforms()[0].get_devices()
 n_devices = len(devices)
 ctx = cl.Context(devices)
 queues = [cl.CommandQueue(ctx, device=d) for d in devices]
-# TODO kernel partial_sums
-
+# determine number of rows in input file
+n_rows = to_array(args.input_file, 0).size
+# kernel: partial_sums
+#   build options to set:
+#     TAU:    the tau value (some unsigned integer > 0)
+#     N_ROWS: number of rows in input (== to size of x and y)
+#     WGSIZE: local size, i.e. number of worker items in workgroup
 src_partial_sums = """
-
   #define FLOAT float
   #define POW2(X) (X)*(X)
+  #define TWO_PI 6.283185307179586
 
   __kernel void
-  partial_sums(unsigned int n
+  partial_sums(uint n
              , FLOAT p_s_x
              , FLOAT p_s_y
-             , int tau
              , __global const FLOAT* y
              , __global const FLOAT* x
+             , uint iy
+             , uint ix
+             , __global FLOAT4* S
              , __global FLOAT* T) {
+    __local FLOAT4 s_tmp[WGSIZE];
     int gid = get_global_id(0);
-    int lid = get_local_id(0);
-    // retrieve data from global memory
-    FLOAT x_n = x[n];
-    FLOAT x_ntau = x[n+tau];
-    FLOAT x_i = x[gid];
-    FLOAT y_n = y[n];
-    FLOAT y_i = y[gid];
-    // compute local values
-    FLOAT tmp_yn = exp(p_s_y * POW2(y_n-y_i));
-    FLOAT s_x = exp(p_s_x * POW2(x_n-x_i));
-    FLOAT s_xxy = exp(p_s_x * POW2(x_ntau-x_i)) * s_x * tmp_yn;
-    FLOAT s_xy = s_x * tmp_yn;
-    FLOAT s_xx = POW2(s_x);
-    //TODO use float4 for s-values
-
-    // barrier local
-
-    // accumulate s-values locally
-
-    // barrier global
-
-    // accumulate s-values globally -> T
-
+    if (gid < N_ROWS) {
+      int lid = get_local_id(0);
+      int wid = get_group_id(0);
+      // retrieve data from global memory
+      FLOAT x_n = x[n];
+      FLOAT x_ntau = x[n+TAU];
+      FLOAT x_i = x[gid];
+      FLOAT y_n = y[n];
+      FLOAT y_i = y[gid];
+      // compute local values
+      FLOAT tmp_yn = exp(p_s_y * POW2(y_n-y_i));
+      FLOAT s_x = exp(p_s_x * POW2(x_n-x_i));
+      FLOAT s_xxy = exp(p_s_x * POW2(x_ntau-x_i)) * s_x * tmp_yn;
+      FLOAT s_xy = s_x * tmp_yn;
+      FLOAT s_xx = POW2(s_x);
+      s_tmp[lid] = (float4) (s_x, s_xxy, s_xy, s_xx);
+      barrier(CLK_LOCAL_MEM_FENCE);
+      // accumulate s-values locally
+      if (lid == 0) {
+        for (uint i=1; i < WGSIZE; ++i) {
+          s_tmp[0] += s_tmp[i];
+        }
+        S[lid] = s_tmp[0];
+      }
+      barrier(CLK_GLOBAL_MEM_FENCE);
+      // accumulate s-values globally
+      if (wid == 0) {
+        uint n_wg = get_num_groups(0);
+        for (uint i=1; i < n_wg; ++i) {
+          S[0] += S[i];
+        }
+        T[iy][ix] += S[1] * log(TWO_PI * S[1] * S[0] / S[2] / S[3]);
+      }
+    }
   }
 """
+# compile kernel
+prg = cl.Program(ctx, src_partial_sums).build(options=["-D", "TAU=%d" % args.tau
+                                                     , "-D", "N_ROWS=%d" % n_rows
+                                                     , "-D", "WGSIZE=%d" % args.wgsize])
 
 
-
-
-# TODO kernel accumulate_T
-
-# TODO estimate local sizes from kernels
 
 ## compute transfer entropies
 for iy in range(args.pcmax):

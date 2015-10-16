@@ -15,7 +15,7 @@ def to_array(fname, column):
                         , sep=" "
                         , engine='c'
                         , skipinitialspace=True
-                        , dtype=np.float64
+                        , dtype=np.float32
                         , usecols=(column,)
                         , header=None)).flatten()
 
@@ -106,18 +106,18 @@ knl_partial_sums = prg.partial_sums
 # memory handling
 n_workgroups = np.ceil(n_rows / args.wgsize)
 global_size = n_workgroups * args.wgsize
-T = np.zeros(args.pcmax**2)
+T = np.zeros(args.pcmax**2, dtype=np.float32)
 T_correction_factors = np.zeros(args.pcmax**2)
-T_final = np.zeros(args.pcmax**2)
+T_final = np.zeros(args.pcmax**2, dtype=np.float32)
 T_buf = cl.Buffer(ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=T)
 knl_partial_sums.set_arg(8, T_buf)
 S = np.zeros(n_workgroups, dtype=cl_array.vec.float4)
 S_buf = cl.Buffer(ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=S)
 knl_partial_sums.set_arg(7, S_buf)
-y = np.zeros(n_rows)
+y = np.zeros(n_rows, dtype=np.float32)
 y_buf = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=y)
 knl_partial_sums.set_arg(3, y_buf)
-x = np.zeros(n_rows)
+x = np.zeros(n_rows, dtype=np.float32)
 x_buf = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=x)
 knl_partial_sums.set_arg(4, x_buf)
 # compute transfer entropies

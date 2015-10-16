@@ -5,7 +5,7 @@ import numpy as np
 import pyopencl as cl
 import pyopencl.array as cl_array
 import pandas as pd
-import datetime
+from datetime import datetime
 import sys
 
 def to_array(fname, column):
@@ -87,11 +87,12 @@ src_partial_sums = """
       barrier(CLK_GLOBAL_MEM_FENCE);
       // accumulate s-values globally
       if (wid == 0) {
+        float4 S_acc = S[0];
         uint n_wg = get_num_groups(0);
         for (uint i=1; i < n_wg; ++i) {
-          S[0] += S[i];
+          S_acc += S[i];
         }
-        T[iy*PCMAX+ix] += S[1] * log(TWO_PI * S[1] * S[0] / S[2] / S[3]);
+        T[iy*PCMAX+ix] += S_acc.s1 * log(TWO_PI * S_acc.s1 * S_acc.s0 / S_acc.s2 / S_acc.s3);
       }
     }
   }
@@ -118,34 +119,34 @@ y_buf = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=y)
 knl_partial_sums.set_arg(3, y_buf)
 x = np.zeros(n_rows)
 x_buf = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=x)
-knl_partial_sums.set_arg(x, x_buf)
+knl_partial_sums.set_arg(4, x_buf)
 # compute transfer entropies
 for iy in range(args.pcmax):
-  knl_partial_sums.set_arg(5, iy)
+  knl_partial_sums.set_arg(5, np.uint32(iy))
   y = to_array(args.input_file, iy)
   for i_dev in range(n_devices):
     cl.enqueue_copy(queues[i_dev], y_buf, y)
-  sigma_y = np.sqrt(np.variance(y))
+  sigma_y = np.sqrt(np.var(y))
   p_s_y = -1.0 / (2*np.power(y.size, -2.0/7.0)*sigma_y**2);
-  knl_partial_sums.set_arg(2, p_s_y)
+  knl_partial_sums.set_arg(2, np.float32(p_s_y))
   # separate ix-range into groups of IDs for multiple GPUs
   ix_ranges = [a.tolist() for a in np.array_split(np.arange(args.pcmax), n_devices)]
   while len(ix_ranges[0]) > 0:
     # distribute work to GPUs
     for i_dev in range(n_devices):
       if len(ix_ranges[i_dev]) > 0:
-        print("run ", iy, ix, datetime.now(), file=sys.stderr)
         cl.enqueue_barrier(queues[i_dev])
         ix = ix_ranges[i_dev].pop()
-        knl_partial_sums.set_arg(6, ix)
+        print("run ", iy, ix, datetime.now(), file=sys.stderr, flush=True)
+        knl_partial_sums.set_arg(6, np.uint32(ix))
         x = to_array(args.input_file, ix)
         cl.enqueue_copy(queues[i_dev], x_buf, x)
-        sigma_x = np.sqrt(np.variance(x))
+        sigma_x = np.sqrt(np.var(x))
         p_s_x = -1.0 / (2*np.power(x.size, -2.0/7.0)*sigma_x**2);
-        knl_partial_sums.set_arg(1, p_s_x)
+        knl_partial_sums.set_arg(1, np.float32(p_s_x))
         for n in range(n_rows):
-          knl_partial_sums.set_arg(0, n)
-          cl.enqueue_nd_range_kernel(queues[i_dev], knl_partial_sums, global_size, wgsize)
+          knl_partial_sums.set_arg(0, np.uint32(n))
+          cl.enqueue_nd_range_kernel(queues[i_dev], knl_partial_sums, (int(global_size),), (args.wgsize,))
         T_correction_factors[iy*args.pcmax+ix] = np.power(n_rows, -4.0/7.0) / (np.power(2*np.pi, 3.0/2.0) * sigma_x**2 * sigma_y)
 # retrieve results
 for i_dev in range(n_devices):

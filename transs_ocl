@@ -39,26 +39,28 @@ ctx = cl.Context(devices)
 queues = [cl.CommandQueue(ctx, device=d) for d in devices]
 # determine number of rows in input file
 n_rows = to_array(args.input_file, 0).size
-# kernel: partial_sums
+###
+# kernel partial_sums
 #   build options to set:
 #     TAU:    the tau value (some unsigned integer > 0)
 #     N_ROWS: number of rows in input (== to size of x and y)
 #     WGSIZE: local size, i.e. number of worker items in workgroup
+#     PCMAX:  highest PC to take into account
 src_partial_sums = """
   #define POW2(X) (X)*(X)
   #define TWO_PI 6.283185307179586
 
   __kernel void
   partial_sums(uint n
-             , float p_s_x
              , float p_s_y
+             , float p_s_x
              , __global const float* y
              , __global const float* x
              , uint iy
              , uint ix
              , __global float4* S
              , __global float* T) {
-    __local float4 s_tmp[WGSIZE];
+    __local float4 S_loc[WGSIZE];
     int gid = get_global_id(0);
     if (gid < N_ROWS) {
       int lid = get_local_id(0);
@@ -70,25 +72,26 @@ src_partial_sums = """
       float y_n = y[n];
       float y_i = y[gid];
       // compute local values
-      float tmp_yn = exp(p_s_y * POW2(y_n-y_i));
+      float s_y = exp(p_s_y * POW2(y_n-y_i));
       float s_x = exp(p_s_x * POW2(x_n-x_i));
-      float s_xxy = exp(p_s_x * POW2(x_ntau-x_i)) * s_x * tmp_yn;
-      float s_xy = s_x * tmp_yn;
+      float s_xxy = exp(p_s_x * POW2(x_ntau-x_i)) * s_x * s_y;
+      float s_xy = s_x * s_y;
       float s_xx = POW2(s_x);
-      s_tmp[lid] = (float4) (s_x, s_xxy, s_xy, s_xx);
+      S_loc[lid] = s_x + s_xxy + s_xy + s_xx;
       barrier(CLK_LOCAL_MEM_FENCE);
-      // accumulate s-values locally
+      // accumulate S locally
       if (lid == 0) {
+        float4 S_acc = S_loc[0];
         for (uint i=1; i < WGSIZE; ++i) {
-          s_tmp[0] += s_tmp[i];
+          S_acc += S_loc[i];
         }
-        S[lid] = s_tmp[0];
+        S[wid] = S_acc;
       }
       barrier(CLK_GLOBAL_MEM_FENCE);
-      // accumulate s-values globally
+      // accumulate S globally
       if (wid == 0) {
-        float4 S_acc = S[0];
         uint n_wg = get_num_groups(0);
+        float4 S_acc = S[0];
         for (uint i=1; i < n_wg; ++i) {
           S_acc += S[i];
         }
@@ -97,65 +100,60 @@ src_partial_sums = """
     }
   }
 """
+
 # compile kernel
 prg = cl.Program(ctx, src_partial_sums).build(options=["-D", "TAU=%d" % args.tau
                                                      , "-D", "N_ROWS=%d" % n_rows
                                                      , "-D", "WGSIZE=%d" % args.wgsize
                                                      , "-D", "PCMAX=%d" % args.pcmax])
 knl_partial_sums = prg.partial_sums
-# memory handling
-n_workgroups = np.ceil(n_rows / args.wgsize)
-global_size = n_workgroups * args.wgsize
+# compute workload grid dimensions
+n_wg = np.ceil(n_rows / args.wgsize)
+global_size = int(n_wg * args.wgsize)
+# allocate memory / buffers
 T = np.zeros(args.pcmax**2, dtype=np.float32)
-T_correction_factors = np.zeros(args.pcmax**2)
-T_final = np.zeros(args.pcmax**2, dtype=np.float32)
-T_buf = cl.Buffer(ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=T)
-knl_partial_sums.set_arg(8, T_buf)
-S = np.zeros(n_workgroups, dtype=cl_array.vec.float4)
+T_prefactors = np.zeros(args.pcmax**2, dtype=np.float32)
+S = np.zeros(n_wg, dtype=cl_array.vec.float4)
+y_buf = cl.Buffer(ctx, mf.READ_ONLY, size=(n_rows*np.dtype('float32').itemsize))
+x_buf = cl.Buffer(ctx, mf.READ_ONLY, size=(n_rows*np.dtype('float32').itemsize))
 S_buf = cl.Buffer(ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=S)
+T_buf = cl.Buffer(ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=T)
+# set fixed kernel parameters
 knl_partial_sums.set_arg(7, S_buf)
-y = np.zeros(n_rows, dtype=np.float32)
-y_buf = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=y)
-knl_partial_sums.set_arg(3, y_buf)
-x = np.zeros(n_rows, dtype=np.float32)
-x_buf = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=x)
-knl_partial_sums.set_arg(4, x_buf)
-# compute transfer entropies
-for iy in range(args.pcmax):
+knl_partial_sums.set_arg(8, T_buf)
+# helper function for OpenCL invocation
+def _acc_n(p_s_y, p_s_x, y_buf, x_byf, iy, ix):
+  knl_partial_sums.set_arg(1, np.float32(p_s_y))
+  knl_partial_sums.set_arg(2, np.float32(p_s_x))
+  knl_partial_sums.set_arg(3, y_buf)
+  knl_partial_sums.set_arg(4, x_buf)
   knl_partial_sums.set_arg(5, np.uint32(iy))
+  knl_partial_sums.set_arg(6, np.uint32(ix))
+  for n in range(n_rows):
+    knl_partial_sums.set_arg(0, np.uint32(n))
+    cl.enqueue_nd_range_kernel(queues[0], knl_partial_sums, (global_size,), (args.wgsize,))
+# run computation
+for iy in range(args.pcmax):
   y = to_array(args.input_file, iy)
-  for i_dev in range(n_devices):
-    cl.enqueue_copy(queues[i_dev], y_buf, y)
+  cl.enqueue_copy(queues[0], y_buf, y)
   sigma_y = np.sqrt(np.var(y))
-  p_s_y = -1.0 / (2*np.power(y.size, -2.0/7.0)*sigma_y**2);
-  knl_partial_sums.set_arg(2, np.float32(p_s_y))
-  # separate ix-range into groups of IDs for multiple GPUs
-  ix_ranges = [a.tolist() for a in np.array_split(np.arange(args.pcmax), n_devices)]
-  while len(ix_ranges[0]) > 0:
-    # distribute work to GPUs
-    for i_dev in range(n_devices):
-      if len(ix_ranges[i_dev]) > 0:
-        cl.enqueue_barrier(queues[i_dev])
-        ix = ix_ranges[i_dev].pop()
-        print("run ", iy, ix, datetime.now(), file=sys.stderr, flush=True)
-        knl_partial_sums.set_arg(6, np.uint32(ix))
-        x = to_array(args.input_file, ix)
-        cl.enqueue_copy(queues[i_dev], x_buf, x)
-        sigma_x = np.sqrt(np.var(x))
-        p_s_x = -1.0 / (2*np.power(x.size, -2.0/7.0)*sigma_x**2);
-        knl_partial_sums.set_arg(1, np.float32(p_s_x))
-        for n in range(n_rows):
-          knl_partial_sums.set_arg(0, np.uint32(n))
-          cl.enqueue_nd_range_kernel(queues[i_dev], knl_partial_sums, (int(global_size),), (args.wgsize,))
-        T_correction_factors[iy*args.pcmax+ix] = np.power(n_rows, -4.0/7.0) / (np.power(2*np.pi, 3.0/2.0) * sigma_x**2 * sigma_y)
+  p_s_y = -1.0 / (2*np.power(n_rows, -2.0/7.0)*sigma_y**2);
+  for ix in range(iy, args.pcmax):
+    x = to_array(args.input_file, ix)
+    cl.enqueue_copy(queues[0], x_buf, x)
+    sigma_x = np.sqrt(np.var(y))
+    p_s_x = -1.0 / (2*np.power(n_rows, -2.0/7.0)*sigma_x**2);
+    # compute y -> x
+    _acc_n(p_s_y, p_s_x, y_buf, x_buf, iy, ix)
+    T_prefactors[iy*args.pcmax+ix] = np.power(n_rows, -4.0/7.0) / (np.power(2*np.pi, 3.0/2.0) * sigma_x**2 * sigma_y)
+    if not iy == ix:
+      # compute x -> y
+      _acc_n(p_s_x, p_s_y, x_buf, y_buf, ix, iy)
+      T_prefactors[ix*args.pcmax+iy] = np.power(n_rows, -4.0/7.0) / (np.power(2*np.pi, 3.0/2.0) * sigma_y**2 * sigma_x)
 # retrieve results
-for i_dev in range(n_devices):
-  cl.enqueue_barrier(queues[i_dev])
-  cl.enqueue_copy(queues[i_dev], T, T_buf)
-  T_final += T
+cl.enqueue_copy(queues[0], T, T_buf)
 for iy in range(args.pcmax):
   for ix in range(args.pcmax):
-    print(" ", T_final[iy*args.pcmax+ix] * T_correction_factors[iy*args.pcmax+ix], end="")
+    print("", T[iy*args.pcmax+ix] * T_prefactors[iy*args.pcmax+ix], end="")
   print("")
-print("finished ", datetime.now(), file=sys.stderr)
 

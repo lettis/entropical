@@ -66,7 +66,7 @@ src_partial_sums = """
     if (lid == 0) {
       // initialize local memory
       for (uint i=0; i < WGSIZE; ++i) {
-        S_loc[i] = 0.0f;
+        S_loc[i] = (float4) (0.0f, 0.0f, 0.0f, 0.0f);
       }
     }
     barrier(CLK_LOCAL_MEM_FENCE);
@@ -99,11 +99,15 @@ src_partial_sums = """
       if (gid == 0) {
         uint n_wg = get_num_groups(0);
         float4 S_acc = S[0];
+
+        T[0] = S[0].s1;                     /////////// DEBUG
         for (uint i=1; i < n_wg; ++i) {
           S_acc += S[i];
+          T[i] = S[i].s1;                     /////////// DEBUG
         }
+
         //T[iy*PCMAX+ix] += S_acc.s1 * log(TWO_PI * S_acc.s1 * S_acc.s0 / S_acc.s2 / S_acc.s3);
-        T[iy*PCMAX+ix] = S_acc.s1 * TWO_PI * S_acc.s1 * S_acc.s0 / S_acc.s2 / S_acc.s3;
+        //T[iy*PCMAX+ix] = S_acc.s1 * TWO_PI * S_acc.s1 * S_acc.s0 / S_acc.s2 / S_acc.s3;
       }
     }
   }
@@ -165,4 +169,7 @@ for iy in range(args.pcmax):
   for ix in range(args.pcmax):
     print("", T[iy*args.pcmax+ix] * T_prefactors[iy*args.pcmax+ix], end="")
   print("")
+
+#for i in range(int(n_wg)):
+#  print(T[i])
 

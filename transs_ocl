@@ -62,8 +62,15 @@ src_partial_sums = """
              , __global float* T) {
     __local float4 S_loc[WGSIZE];
     int gid = get_global_id(0);
+    int lid = get_local_id(0);
+    if (lid == 0) {
+      // initialize local memory
+      for (uint i=0; i < WGSIZE; ++i) {
+        S_loc[i] = 0.0f;
+      }
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
     if (gid < N_ROWS) {
-      int lid = get_local_id(0);
       // retrieve data from global memory
       float x_n = x[n];
       float x_ntau = x[n+TAU];
@@ -76,34 +83,28 @@ src_partial_sums = """
       float s_xxy = exp(p_s_x * POW2(x_ntau-x_i)) * s_x * s_y;
       float s_xy = s_x * s_y;
       float s_xx = POW2(s_x);
-      S_loc[lid] = s_x + s_xxy + s_xy + s_xx;
+      S_loc[lid] = (float4) (s_x, s_xxy, s_xy, s_xx);
       barrier(CLK_LOCAL_MEM_FENCE);
       // accumulate S locally
       if (lid == 0) {
         int wid = get_group_id(0);
         float4 S_acc = S_loc[0];
         for (uint i=1; i < WGSIZE; ++i) {
-          S_acc = S_acc + S_loc[i];
+          S_acc += S_loc[i];
         }
         S[wid] = S_acc;
       }
       barrier(CLK_GLOBAL_MEM_FENCE);
+      // accumulate S globally
       if (gid == 0) {
-        T[iy*PCMAX+ix] = S[0].s0;
+        uint n_wg = get_num_groups(0);
+        float4 S_acc = S[0];
+        for (uint i=1; i < n_wg; ++i) {
+          S_acc += S[i];
+        }
+        //T[iy*PCMAX+ix] += S_acc.s1 * log(TWO_PI * S_acc.s1 * S_acc.s0 / S_acc.s2 / S_acc.s3);
+        T[iy*PCMAX+ix] = S_acc.s1 * TWO_PI * S_acc.s1 * S_acc.s0 / S_acc.s2 / S_acc.s3;
       }
-
-
-//      barrier(CLK_GLOBAL_MEM_FENCE);
-//      // accumulate S globally
-//      if (gid == 0) {
-//        uint n_wg = get_num_groups(0);
-//        float4 S_acc = S[0];
-//        for (uint i=1; i < n_wg; ++i) {
-//          S_acc += S[i];
-//        }
-//        //T[iy*PCMAX+ix] += S_acc.s1 * log(TWO_PI * S_acc.s1 * S_acc.s0 / S_acc.s2 / S_acc.s3);
-//        T[iy*PCMAX+ix] = S_acc.s0;
-//      }
     }
   }
 """
@@ -125,7 +126,6 @@ y_buf = cl.Buffer(ctx, mf.READ_ONLY, size=(n_rows*np.dtype('float32').itemsize))
 x_buf = cl.Buffer(ctx, mf.READ_ONLY, size=(n_rows*np.dtype('float32').itemsize))
 S_buf = cl.Buffer(ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=S)
 T_buf = cl.Buffer(ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=T)
-#cl.enqueue_copy(queues[0], S_buf, S)
 cl.enqueue_copy(queues[0], T_buf, T)
 # set fixed kernel parameters
 knl_partial_sums.set_arg(7, S_buf)
@@ -163,7 +163,6 @@ for iy in range(args.pcmax):
 cl.enqueue_copy(queues[0], T, T_buf)
 for iy in range(args.pcmax):
   for ix in range(args.pcmax):
-    #print("", T[iy*args.pcmax+ix] * T_prefactors[iy*args.pcmax+ix], end="")
-    print("", T[iy*args.pcmax+ix], end="")
+    print("", T[iy*args.pcmax+ix] * T_prefactors[iy*args.pcmax+ix], end="")
   print("")
 

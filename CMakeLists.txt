@@ -35,8 +35,15 @@ add_subdirectory(coords_file)
 find_package(Boost 1.49 COMPONENTS program_options REQUIRED)
 include_directories (${Boost_INCLUDE_DIR})
 
-add_executable(transs transs.cpp tools.cpp)
-target_link_libraries(transs ${Boost_LIBRARIES} coords_file)
+if (TRANSS_OCL)
+  add_definitions(-DTRANSS_OCL)
+  add_executable(transs_ocl transs.cpp transs_ocl.cpp tools.cpp)
+  target_link_libraries(transs_ocl ${Boost_LIBRARIES} coords_file)
+  install(TARGETS transs_ocl RUNTIME DESTINATION .)
+else()
+  add_executable(transs transs.cpp transs_omp.cpp tools.cpp)
+  target_link_libraries(transs ${Boost_LIBRARIES} coords_file)
+  install(TARGETS transs RUNTIME DESTINATION .)
+endif()
 
-install(TARGETS transs RUNTIME DESTINATION .)
 

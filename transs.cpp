@@ -7,9 +7,9 @@
 
 int main(int argc, char* argv[]) {
 #ifdef TRANSS_OCL
-  return main_omp(int argc, char* argv[]);
+  return main_ocl(argc, argv);
 #else
-  return main_ocl(int argc, char* argv[]);
+  return main_omp(argc, argv);
 #endif
 }
 

@@ -1,6 +1,10 @@
 
 #include "transs_ocl.hpp"
 
+#define __CL_ENABLE_EXCEPTIONS
+#include <CL/cl.hpp>
+
+
 int main_ocl(int argc, char* argv[]) {
   namespace po = boost::program_options;
   po::variables_map args;
@@ -26,8 +30,20 @@ int main_ocl(int argc, char* argv[]) {
       std::cout << opts << std::endl;
       return EXIT_SUCCESS;
     }
-
-    std::cout << "OCL hello world" << std::endl;
+    // initialize OpenCL
+    std::vector<cl::Platform> platforms;
+    std::vector<cl::Device> platform_devices;
+    std::vector<cl::Device> all_devices;
+    std::vector<cl::Device> ctx_devices;
+    std::string device_name;
+    cl::Platform::get(&platforms);
+    platforms[0].getDevices(CL_DEVICE_TYPE_ALL, &platform_devices);
+    cl::Context ctx(platform_devices);
+    ctx_devices = ctx.getInfo<CL_CONTEXT_DEVICES>();
+    for (cl_uint i=0; i < ctx_devices.size(); ++i) {
+      device_name = ctx_devices[i].getInfo<CL_DEVICE_NAME>();
+      std::cout << "device " << i << ": " << device_name << std::endl;
+    }
 
 
 /*
@@ -140,6 +156,8 @@ int main_ocl(int argc, char* argv[]) {
     }
     std::cerr << opts << std::endl;
     return EXIT_FAILURE;
+  } catch (cl::Error e) {
+    std::cerr << e.what() << ": Error code " << e.err() << std::endl;
   } catch (const std::exception& e) {
     std::cerr << "\n" << e.what() << "\n\n";
     std::cerr << opts << std::endl;

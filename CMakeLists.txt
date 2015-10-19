@@ -36,9 +36,11 @@ find_package(Boost 1.49 COMPONENTS program_options REQUIRED)
 include_directories (${Boost_INCLUDE_DIR})
 
 if (TRANSS_OCL)
+  find_package(OpenCL)
+
   add_definitions(-DTRANSS_OCL)
   add_executable(transs_ocl transs.cpp transs_ocl.cpp tools.cpp)
-  target_link_libraries(transs_ocl ${Boost_LIBRARIES} coords_file)
+  target_link_libraries(transs_ocl ${Boost_LIBRARIES} ${OpenCL_LIBRARIES} coords_file)
   install(TARGETS transs_ocl RUNTIME DESTINATION .)
 else()
   add_executable(transs transs.cpp transs_omp.cpp tools.cpp)

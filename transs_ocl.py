@@ -92,19 +92,20 @@ src_partial_sums = """
         for (uint i=1; i < WGSIZE; ++i) {
           S_acc += S_loc[i];
         }
-        S[wid] = S_acc;
+        //S[wid] = S_acc;
+        T[wid] = ;
       }
       barrier(CLK_GLOBAL_MEM_FENCE);
       // accumulate S globally
       if (gid == 0) {
-        uint n_wg = get_num_groups(0);
-        float4 S_acc = S[0];
-
-        T[0] = S[0].s1;                     /////////// DEBUG
-        for (uint i=1; i < n_wg; ++i) {
-          S_acc += S[i];
-          T[i] = S[i].s1;                     /////////// DEBUG
-        }
+//        uint n_wg = get_num_groups(0);
+//        float4 S_acc = S[0];
+//
+//        T[0] = S[0].s1;                     /////////// DEBUG
+//        for (uint i=1; i < n_wg; ++i) {
+//          S_acc += S[i];
+//          T[i] = S[i].s1;                   /////////// DEBUG
+//        }
 
         //T[iy*PCMAX+ix] += S_acc.s1 * log(TWO_PI * S_acc.s1 * S_acc.s0 / S_acc.s2 / S_acc.s3);
         //T[iy*PCMAX+ix] = S_acc.s1 * TWO_PI * S_acc.s1 * S_acc.s0 / S_acc.s2 / S_acc.s3;
@@ -123,7 +124,8 @@ knl_partial_sums = prg.partial_sums
 n_wg = np.ceil(n_rows / args.wgsize)
 global_size = int(n_wg * args.wgsize)
 # allocate memory / buffers
-T = np.zeros(args.pcmax**2, dtype=np.float32)
+#T = np.zeros(args.pcmax**2, dtype=np.float32)
+T = np.zeros(n_wg, dtype=np.float32)
 T_prefactors = np.zeros(args.pcmax**2, dtype=np.float32)
 S = np.zeros(n_wg, dtype=cl_array.vec.float4)
 y_buf = cl.Buffer(ctx, mf.READ_ONLY, size=(n_rows*np.dtype('float32').itemsize))
@@ -165,11 +167,11 @@ for iy in range(args.pcmax):
       T_prefactors[ix*args.pcmax+iy] = np.power(n_rows, -4.0/7.0) / (np.power(2*np.pi, 3.0/2.0) * sigma_y**2 * sigma_x)
 # retrieve results
 cl.enqueue_copy(queues[0], T, T_buf)
-for iy in range(args.pcmax):
-  for ix in range(args.pcmax):
-    print("", T[iy*args.pcmax+ix] * T_prefactors[iy*args.pcmax+ix], end="")
-  print("")
+#for iy in range(args.pcmax):
+#  for ix in range(args.pcmax):
+#    print("", T[iy*args.pcmax+ix] * T_prefactors[iy*args.pcmax+ix], end="")
+#  print("")
 
-#for i in range(int(n_wg)):
-#  print(T[i])
+for i in range(int(n_wg)):
+  print(i, T[i])
 

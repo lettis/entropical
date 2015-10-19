@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 
+#define POW2(X) (X)*(X)
 
 // allocate memory (32 bit for SSE4_1, AVX)
 // TODO: define MEM_ALIGNMENT during cmake and

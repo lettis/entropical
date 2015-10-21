@@ -22,6 +22,7 @@ int main_ocl(int argc, char* argv[]) {
       ("pcmax", po::value<unsigned int>()->default_value(0), "max. PC to read (default: 0 == read all)")
       ("output,o", po::value<std::string>()->default_value(""), "output file (default: stdout)")
       ("wgsize", po::value<unsigned int>()->default_value(64), "OpenCL workgroup size (default: 64)")
+      ("ngpu", po::value<unsigned int>()->default_value(1), "number of GPUs to use (default: 1) ATTENTION: MULTI-GPU NOT YET IMPLEMENTED.")
       ("help,h", po::bool_switch()->default_value(false), "show this help.");
     // option parsing, settings, checks
     po::positional_options_description pos_opts;
@@ -48,6 +49,11 @@ int main_ocl(int argc, char* argv[]) {
     unsigned int wgsize = args["wgsize"].as<unsigned int>();
     if (wgsize == 0) {
       std::cerr << "error: with a workgroup size of 0 work items, nothing can be computed." << std::endl;
+      return EXIT_FAILURE;
+    }
+    unsigned int ngpu = args["ngpu"].as<unsigned int>();
+    if (wgsize == 0) {
+      std::cerr << "error: with no GPUs to use, how should I compute anything?" << std::endl;
       return EXIT_FAILURE;
     }
     // read coordinates
@@ -84,6 +90,7 @@ int main_ocl(int argc, char* argv[]) {
     // initialize OpenCL
     std::vector<cl::Platform> platforms;
     cl::Platform::get(&platforms);
+    //TODO ctxs and qs for multi-GPU
     cl_context_properties cps[3] = {CL_CONTEXT_PLATFORM
                                   , (cl_context_properties)(platforms[0])()
                                   , 0 };
@@ -172,6 +179,7 @@ int main_ocl(int argc, char* argv[]) {
     // set up host/device buffers
     std::vector<float> T(pc_max*pc_max, 0.0f);
     cl::Buffer y_buf(ctx, CL_MEM_READ_ONLY, n_rows*sizeof(float));
+    //TODO vectors of buffers for multi-GPU
     cl::Buffer x_buf(ctx, CL_MEM_READ_ONLY, n_rows*sizeof(float));
     cl::Buffer S_buf(ctx, CL_MEM_READ_WRITE, n_workgroups*sizeof(float)*4);
     cl::Buffer T_buf(ctx, CL_MEM_READ_WRITE, pc_max*pc_max*sizeof(float));
@@ -181,10 +189,13 @@ int main_ocl(int argc, char* argv[]) {
     knl.setArg(8, T_buf);
     // run computation
     for (unsigned int iy=0; iy < pc_max; ++iy) {
-      q.enqueueWriteBuffer(y_buf, CL_TRUE, 0, n_rows*sizeof(float), &coords[iy*n_rows]);
+      q.enqueueWriteBuffer(y_buf, CL_FALSE, 0, n_rows*sizeof(float), &coords[iy*n_rows]);
       // off-diagonals
       for (unsigned int ix=iy+1; ix < pc_max; ++ix) {
-        q.enqueueWriteBuffer(x_buf, CL_TRUE, 0, n_rows*sizeof(float), &coords[ix*n_rows]);
+
+        //TODO multi-GPU on inner-loop level
+
+        q.enqueueWriteBuffer(x_buf, CL_FALSE, 0, n_rows*sizeof(float), &coords[ix*n_rows]);
         // y -> x
         knl.setArg(1, p_s[iy]);
         knl.setArg(2, p_s[ix]);

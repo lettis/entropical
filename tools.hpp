@@ -22,7 +22,7 @@
 #if defined(__INTEL_COMPILER)
   #define ASSUME_ALIGNED(c) __assume_aligned( (c), MEM_ALIGNMENT)
 #else
-  #define ASSUME_ALIGNED(c) (c) = (double*) __builtin_assume_aligned( (c), MEM_ALIGNMENT)
+  #define ASSUME_ALIGNED(c) (c) = (float*) __builtin_assume_aligned( (c), MEM_ALIGNMENT)
 #endif
 
 namespace Tools {
@@ -55,6 +55,9 @@ namespace String {
    */
   std::string
   strip(std::string str);
+
+  std::string
+  printf(const std::string& str, ...);
 } // end namespace Tools::String
 
 
@@ -139,7 +142,6 @@ namespace IO {
   /**
    * read coordinates from space-separated ASCII file.
    * will write data with precision of NUM-type into memory.
-   * format: [row * n_cols + col]
    * return value: tuple of {data (unique_ptr<NUM> with custom deleter), n_rows (size_t), n_cols (size_t)}.
    */
   template <typename NUM>

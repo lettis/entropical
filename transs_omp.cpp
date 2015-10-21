@@ -46,21 +46,21 @@ int main_omp(int argc, char* argv[]) {
       return EXIT_FAILURE;
     }
     // read coordinates
-    double* coords;
+    float* coords;
     std::size_t n_rows;
     std::size_t n_cols;
     if (pc_max == 0) {
       // read full data set
-      std::tie(coords, n_rows, n_cols) = Tools::IO::read_coords<double>(fname_input, 'C');
+      std::tie(coords, n_rows, n_cols) = Tools::IO::read_coords<float>(fname_input, 'C');
     } else {
       // read only until given PC
-      std::tie(coords, n_rows, n_cols) = Tools::IO::read_coords<double>(fname_input, 'C', Tools::range<std::size_t>(0, pc_max, 1));
+      std::tie(coords, n_rows, n_cols) = Tools::IO::read_coords<float>(fname_input, 'C', Tools::range<std::size_t>(0, pc_max, 1));
     }
     // compute sigmas (and bandwidths) for every dimension
     std::vector<float> sigmas(n_cols);
     std::vector<float> bandwidths(n_cols);
-    std::vector<double> col_min(n_cols,  std::numeric_limits<double>::infinity());
-    std::vector<double> col_max(n_cols, -std::numeric_limits<double>::infinity());
+    std::vector<float> col_min(n_cols,  std::numeric_limits<float>::infinity());
+    std::vector<float> col_max(n_cols, -std::numeric_limits<float>::infinity());
     {
       using namespace boost::accumulators;
       using VarAcc = accumulator_set<float, features<tag::variance(lazy)>>;

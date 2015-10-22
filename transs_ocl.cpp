@@ -90,7 +90,6 @@ int main_ocl(int argc, char* argv[]) {
     // initialize OpenCL
     std::vector<cl::Platform> platforms;
     cl::Platform::get(&platforms);
-    //TODO ctxs and qs for multi-GPU
     cl_context_properties cps[3] = {CL_CONTEXT_PLATFORM
                                   , (cl_context_properties)(platforms[0])()
                                   , 0 };
@@ -115,9 +114,15 @@ int main_ocl(int argc, char* argv[]) {
                       "             , __global const float* x"
                       "             , uint iy"
                       "             , uint ix"
-                      "             , __global float4* S"
+                      "             , __global float* S_x"
+                      "             , __global float* S_xxy"
+                      "             , __global float* S_xy"
+                      "             , __global float* S_xx"
                       "             , __global float* T) {"
-                      "    __local float4 S_loc[WGSIZE];"
+                      "    __local float S_x_loc[WGSIZE];"
+                      "    __local float S_xxy_loc[WGSIZE];"
+                      "    __local float S_xy_loc[WGSIZE];"
+                      "    __local float S_xx_loc[WGSIZE];"
                       "    uint gid = get_global_id(0);"
                       "    uint lid = get_local_id(0);"
                       "    uint n_workgroups = get_num_groups(0);"
@@ -131,31 +136,49 @@ int main_ocl(int argc, char* argv[]) {
                       "      float y_i = y[gid];"
                       "      float s_y = exp(p_s_y * POW2(y_n-y_i));"
                       "      float s_x = exp(p_s_x * POW2(x_n-x_i));"
-                      "      float s_xxy = exp(p_s_x * POW2(x_ntau-x_i)) * s_x * s_y;"
-                      "      float s_xy = s_x * s_y;"
-                      "      float s_xx = POW2(s_x);"
-                      "      S_loc[lid] = (float4) (s_x, s_xxy, s_xy, s_xx);"
+                      "      S_xxy_loc[lid] = exp(p_s_x * POW2(x_ntau-x_i)) * s_x * s_y;"
+                      "      S_xy_loc[lid] = s_x * s_y;"
+                      "      S_xx_loc[lid] = POW2(s_x);"
+                      "      S_x_loc[lid] = s_x;"
                       "    } else {"
-                      "      S_loc[lid] = (float4) (0.0f, 0.0f, 0.0f, 0.0f);"
+                      "      S_xxy_loc[lid] = 0.0f;"
+                      "      S_xy_loc[lid] = 0.0f;"
+                      "      S_xx_loc[lid] = 0.0f;"
+                      "      S_x_loc[lid] = 0.0f;"
                       "    }"
                                                                     // accumulate S locally
                       "    barrier(CLK_LOCAL_MEM_FENCE);"
                       "    if (lid == 0) {"
                       "      uint wid = get_group_id(0);"
-                      "      float4 S_acc = S_loc[0];"
+                      "      float s_x_acc = S_x_loc[0];"
+                      "      float s_xxy_acc = S_xxy_loc[0];"
+                      "      float s_xy_acc = S_xy_loc[0];"
+                      "      float s_xx_acc = S_xx_loc[0];"
                       "      for (uint i=1; i < WGSIZE; ++i) {"
-                      "        S_acc += S_loc[i];"
+                      "        s_x_acc += S_x_loc[i];"
+                      "        s_xxy_acc += S_xxy_loc[i];"
+                      "        s_xy_acc += S_xy_loc[i];"
+                      "        s_xx_acc += S_xx_loc[i];"
                       "      }"
-                      "      S[wid] = S_acc;"
+                      "      S_x[wid] = s_x_acc;"
+                      "      S_xxy[wid] = s_xxy_acc;"
+                      "      S_xy[wid] = s_xy_acc;"
+                      "      S_xx[wid] = s_xx_acc;"
                       "    }"
                                                                     // accumulate S globally
                       "    barrier(CLK_GLOBAL_MEM_FENCE);"
                       "    if (gid == 0) {"
-                      "      float4 S_acc = (float4) (0.0f, 0.0f, 0.0f, 0.0f);"
+                      "      float s_x_acc = 0.0f;"
+                      "      float s_xxy_acc = 0.0f;"
+                      "      float s_xy_acc = 0.0f;"
+                      "      float s_xx_acc = 0.0f;"
                       "      for (uint i=0; i < n_workgroups; ++i) {"
-                      "        S_acc += S[i];"
+                      "        s_x_acc += S_x[i];"
+                      "        s_xxy_acc += S_xxy[i];"
+                      "        s_xy_acc += S_xy[i];"
+                      "        s_xx_acc += S_xx[i];"
                       "      }"
-                      "      T[iy*PCMAX+ix] += S_acc.s1 * log(TWO_PI * S_acc.s1 * S_acc.s0 / S_acc.s2 / S_acc.s3);"
+                      "      T[iy*PCMAX+ix] += s_xxy_acc * log(TWO_PI * s_xxy_acc * s_x_acc / s_xy_acc / s_xx_acc);"
                       "    }"
                       "  }"
     ;
@@ -175,46 +198,48 @@ int main_ocl(int argc, char* argv[]) {
     // set up host/device buffers
     std::vector<float> T(pc_max*pc_max, 0.0f);
     cl::Buffer y_buf(ctx, CL_MEM_READ_ONLY, n_rows*sizeof(float));
-    //TODO vectors of buffers for multi-GPU
     cl::Buffer x_buf(ctx, CL_MEM_READ_ONLY, n_rows*sizeof(float));
-    cl::Buffer S_buf(ctx, CL_MEM_READ_WRITE, n_workgroups*sizeof(float)*4);
+    cl::Buffer S_x_buf(ctx, CL_MEM_READ_WRITE, n_workgroups*sizeof(float));
+    cl::Buffer S_xxy_buf(ctx, CL_MEM_READ_WRITE, n_workgroups*sizeof(float));
+    cl::Buffer S_xy_buf(ctx, CL_MEM_READ_WRITE, n_workgroups*sizeof(float));
+    cl::Buffer S_xx_buf(ctx, CL_MEM_READ_WRITE, n_workgroups*sizeof(float));
     cl::Buffer T_buf(ctx, CL_MEM_READ_WRITE, pc_max*pc_max*sizeof(float));
     q.enqueueWriteBuffer(T_buf, CL_TRUE, 0, pc_max*pc_max*sizeof(float), T.data());
     // set default arguments for kernel
-    knl.setArg(7, S_buf);
-    knl.setArg(8, T_buf);
+    knl.setArg(7, S_x_buf);
+    knl.setArg(8, S_xxy_buf);
+    knl.setArg(9, S_xy_buf);
+    knl.setArg(10, S_xx_buf);
+    knl.setArg(11, T_buf);
     // run computation
     for (unsigned int iy=0; iy < pc_max; ++iy) {
       q.enqueueWriteBuffer(y_buf, CL_TRUE, 0, n_rows*sizeof(float), &coords[iy*n_rows]);
       // off-diagonals
-//      for (unsigned int ix=iy+1; ix < pc_max; ++ix) {
-//
-//        //TODO multi-GPU on inner-loop level
-//
-//        q.enqueueWriteBuffer(x_buf, CL_TRUE, 0, n_rows*sizeof(float), &coords[ix*n_rows]);
-//        // y -> x
-//        knl.setArg(1, p_s[iy]);
-//        knl.setArg(2, p_s[ix]);
-//        knl.setArg(3, y_buf);
-//        knl.setArg(4, x_buf);
-//        knl.setArg(5, iy);
-//        knl.setArg(6, ix);
-//        for (unsigned int n=0; n < n_rows-tau; ++n) {
-//          knl.setArg(0, n);
-//          q.enqueueNDRangeKernel(knl, cl::NullRange, global, local);
-//        }
-//        // x -> y
-//        knl.setArg(1, p_s[ix]);
-//        knl.setArg(2, p_s[iy]);
-//        knl.setArg(3, x_buf);
-//        knl.setArg(4, y_buf);
-//        knl.setArg(5, ix);
-//        knl.setArg(6, iy);
-//        for (unsigned int n=0; n < n_rows-tau; ++n) {
-//          knl.setArg(0, n);
-//          q.enqueueNDRangeKernel(knl, cl::NullRange, global, local);
-//        }
-//      }
+      for (unsigned int ix=iy+1; ix < pc_max; ++ix) {
+        q.enqueueWriteBuffer(x_buf, CL_TRUE, 0, n_rows*sizeof(float), &coords[ix*n_rows]);
+        // y -> x
+        knl.setArg(1, p_s[iy]);
+        knl.setArg(2, p_s[ix]);
+        knl.setArg(3, y_buf);
+        knl.setArg(4, x_buf);
+        knl.setArg(5, iy);
+        knl.setArg(6, ix);
+        for (unsigned int n=0; n < n_rows-tau; ++n) {
+          knl.setArg(0, n);
+          q.enqueueNDRangeKernel(knl, cl::NullRange, global, local);
+        }
+        // x -> y
+        knl.setArg(1, p_s[ix]);
+        knl.setArg(2, p_s[iy]);
+        knl.setArg(3, x_buf);
+        knl.setArg(4, y_buf);
+        knl.setArg(5, ix);
+        knl.setArg(6, iy);
+        for (unsigned int n=0; n < n_rows-tau; ++n) {
+          knl.setArg(0, n);
+          q.enqueueNDRangeKernel(knl, cl::NullRange, global, local);
+        }
+      }
       // diagonals
       knl.setArg(1, p_s[iy]);
       knl.setArg(2, p_s[iy]);
@@ -222,8 +247,7 @@ int main_ocl(int argc, char* argv[]) {
       knl.setArg(4, y_buf);
       knl.setArg(5, iy);
       knl.setArg(6, iy);
-//      for (unsigned int n=0; n < n_rows-tau; ++n) {
-      for (unsigned int n=0; n < 1; ++n) {
+      for (unsigned int n=0; n < n_rows-tau; ++n) {
         knl.setArg(0, n);
         q.enqueueNDRangeKernel(knl, cl::NullRange, global, local);
       }
@@ -236,7 +260,8 @@ int main_ocl(int argc, char* argv[]) {
     for (unsigned int iy=0; iy < n_cols; ++iy) {
       for (unsigned int ix=0; ix < n_cols; ++ix) {
         Tools::IO::out() << " "
-                         << T[iy*pc_max+ix] * pow(n_rows, -4.0/7.0) / (pow(2*M_PI, 3.0/2.0) * sigmas[iy]*sigmas[ix]*sigmas[ix]);
+                         //<< T[iy*pc_max+ix] * pow(n_rows, -4.0/7.0) / (pow(2*M_PI, 3.0/2.0) * sigmas[iy]*sigmas[ix]*sigmas[ix]);
+                         << T[iy*pc_max+ix];
       }
       Tools::IO::out() << "\n";
     }

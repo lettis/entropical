@@ -140,26 +140,27 @@ int main_ocl(int argc, char* argv[]) {
                       "      float s_xy = s_x * s_y;"
                       "      float s_xx = POW2(s_x);"
                       "      S_loc[lid] = (float4) (s_x, s_xxy, s_xy, s_xx);"
+                      "    }"
                                                                     // accumulate S locally
-                      "      barrier(CLK_LOCAL_MEM_FENCE);"
-                      "      if (lid == 0) {"
-                      "        int wid = get_group_id(0);"
-                      "        float4 S_acc = S_loc[0];"
-                      "        for (uint i=1; i < WGSIZE; ++i) {"
-                      "          S_acc += S_loc[i];"
-                      "        }"
-                      "        S[wid] = S_acc;"
+                      "    barrier(CLK_LOCAL_MEM_FENCE);"
+                      "    if (lid == 0) {"
+                      "      int wid = get_group_id(0);"
+                      "      float4 S_acc = S_loc[0];"
+                      "      for (uint i=1; i < WGSIZE; ++i) {"
+                      "        S_acc += S_loc[i];"
                       "      }"
+                      "      S[wid] = S_acc;"
+                      "    }"
                                                                     // accumulate S globally
-                      "      barrier(CLK_GLOBAL_MEM_FENCE);"
-                      "      if (gid == 0) {"
-                      "        uint n_wg = get_num_groups(0);"
-                      "        float4 S_acc = S[0];"
-                      "        for (uint i=1; i < n_wg; ++i) {"
-                      "          S_acc += S[i];"
-                      "        }"
-                      "        T[iy*PCMAX+ix] += S_acc.s1 * log(TWO_PI * S_acc.s1 * S_acc.s0 / S_acc.s2 / S_acc.s3);"
+                      "    barrier(CLK_GLOBAL_MEM_FENCE);"
+                      "    if (gid == 0) {"
+                      "      uint n_wg = get_num_groups(0);"
+                      "      float4 S_acc = (float4) (0.0f, 0.0f, 0.0f, 0.0f);"
+                      "      for (uint i=0; i < n_wg; ++i) {"
+                      "        S_acc += S[i];"
                       "      }"
+//                      "      T[iy*PCMAX+ix] += S_acc.s1 * log(TWO_PI * S_acc.s1 * S_acc.s0 / S_acc.s2 / S_acc.s3);"
+                      "      T[iy*PCMAX+ix] = S_acc.s1;"
                       "    }"
                       "  }"
     ;
@@ -189,13 +190,13 @@ int main_ocl(int argc, char* argv[]) {
     knl.setArg(8, T_buf);
     // run computation
     for (unsigned int iy=0; iy < pc_max; ++iy) {
-      q.enqueueWriteBuffer(y_buf, CL_FALSE, 0, n_rows*sizeof(float), &coords[iy*n_rows]);
+      q.enqueueWriteBuffer(y_buf, CL_TRUE, 0, n_rows*sizeof(float), &coords[iy*n_rows]);
       // off-diagonals
       for (unsigned int ix=iy+1; ix < pc_max; ++ix) {
 
         //TODO multi-GPU on inner-loop level
 
-        q.enqueueWriteBuffer(x_buf, CL_FALSE, 0, n_rows*sizeof(float), &coords[ix*n_rows]);
+        q.enqueueWriteBuffer(x_buf, CL_TRUE, 0, n_rows*sizeof(float), &coords[ix*n_rows]);
         // y -> x
         knl.setArg(1, p_s[iy]);
         knl.setArg(2, p_s[ix]);

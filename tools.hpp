@@ -1,11 +1,13 @@
 #pragma once
 
+#define TRANSS_FLOAT float
+
+#define POW2(X) (X)*(X)
+
 #include <iostream>
 #include <fstream>
 #include <string>
 #include <vector>
-
-#define POW2(X) (X)*(X)
 
 // allocate memory (32 bit for SSE4_1, AVX)
 // TODO: define MEM_ALIGNMENT during cmake and
@@ -22,7 +24,7 @@
 #if defined(__INTEL_COMPILER)
   #define ASSUME_ALIGNED(c) __assume_aligned( (c), MEM_ALIGNMENT)
 #else
-  #define ASSUME_ALIGNED(c) (c) = (float*) __builtin_assume_aligned( (c), MEM_ALIGNMENT)
+  #define ASSUME_ALIGNED(c) (c) = (TRANSS_FLOAT*) __builtin_assume_aligned( (c), MEM_ALIGNMENT)
 #endif
 
 namespace Tools {

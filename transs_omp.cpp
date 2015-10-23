@@ -1,6 +1,7 @@
 
 #include "transs_omp.hpp"
 
+
 int main_omp(int argc, char* argv[]) {
   namespace po = boost::program_options;
   po::variables_map args;
@@ -46,24 +47,24 @@ int main_omp(int argc, char* argv[]) {
       return EXIT_FAILURE;
     }
     // read coordinates
-    float* coords;
+    TRANSS_FLOAT* coords;
     std::size_t n_rows;
     std::size_t n_cols;
     if (pc_max == 0) {
       // read full data set
-      std::tie(coords, n_rows, n_cols) = Tools::IO::read_coords<float>(fname_input, 'C');
+      std::tie(coords, n_rows, n_cols) = Tools::IO::read_coords<TRANSS_FLOAT>(fname_input, 'C');
     } else {
       // read only until given PC
-      std::tie(coords, n_rows, n_cols) = Tools::IO::read_coords<float>(fname_input, 'C', Tools::range<std::size_t>(0, pc_max, 1));
+      std::tie(coords, n_rows, n_cols) = Tools::IO::read_coords<TRANSS_FLOAT>(fname_input, 'C', Tools::range<std::size_t>(0, pc_max, 1));
     }
     // compute sigmas (and bandwidths) for every dimension
-    std::vector<float> sigmas(n_cols);
-    std::vector<float> bandwidths(n_cols);
-    std::vector<float> col_min(n_cols,  std::numeric_limits<float>::infinity());
-    std::vector<float> col_max(n_cols, -std::numeric_limits<float>::infinity());
+    std::vector<TRANSS_FLOAT> sigmas(n_cols);
+    std::vector<TRANSS_FLOAT> bandwidths(n_cols);
+    std::vector<TRANSS_FLOAT> col_min(n_cols,  std::numeric_limits<TRANSS_FLOAT>::infinity());
+    std::vector<TRANSS_FLOAT> col_max(n_cols, -std::numeric_limits<TRANSS_FLOAT>::infinity());
     {
       using namespace boost::accumulators;
-      using VarAcc = accumulator_set<float, features<tag::variance(lazy)>>;
+      using VarAcc = accumulator_set<TRANSS_FLOAT, features<tag::variance(lazy)>>;
       for (std::size_t j=0; j < n_cols; ++j) {
         VarAcc acc;
         for (std::size_t i=0; i < n_rows; ++i) {
@@ -85,12 +86,12 @@ int main_omp(int argc, char* argv[]) {
       }
     }
     // compute transfer entropies
-    std::vector<std::vector<float>> T(n_cols, std::vector<float>(n_cols, 0.0));
+    std::vector<std::vector<TRANSS_FLOAT>> T(n_cols, std::vector<TRANSS_FLOAT>(n_cols, 0.0));
     {
       std::size_t y, x, n, i;
-      float p_s_y, p_s_x;
-      float s_xxy, s_xy, s_xx, s_x;
-      float tmp_xn, tmp_xn_tau, tmp_yn;
+      TRANSS_FLOAT p_s_y, p_s_x;
+      TRANSS_FLOAT s_xxy, s_xy, s_xx, s_x;
+      TRANSS_FLOAT tmp_xn, tmp_xn_tau, tmp_yn;
       #pragma omp parallel for default(none)\
                                private(y,x,n,i,p_s_y,p_s_x,s_xxy,s_xy,s_xx,s_x,tmp_xn,tmp_xn_tau,tmp_yn)\
                                firstprivate(n_cols,n_rows,tau)\

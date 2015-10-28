@@ -67,20 +67,23 @@ int main_ocl(int argc, char* argv[]) {
       // read only until given PC
       std::tie(coords, n_rows, n_cols) = Tools::IO::read_coords<TRANSS_FLOAT>(fname_input, 'C', Tools::range<std::size_t>(0, pc_max, 1));
     }
-    // compute sigmas for every dimension
+    // compute sigmas and (first and second) minimal values for every dimension
     std::vector<TRANSS_FLOAT> sigmas(n_cols);
     std::vector<TRANSS_FLOAT> p_s(n_cols);
-    std::vector<TRANSS_FLOAT> col_min(n_cols,  std::numeric_limits<TRANSS_FLOAT>::infinity());
-    std::vector<TRANSS_FLOAT> col_max(n_cols, -std::numeric_limits<TRANSS_FLOAT>::infinity());
+    std::vector<TRANSS_FLOAT> col_min1(n_cols, std::numeric_limits<TRANSS_FLOAT>::infinity());
+    std::vector<TRANSS_FLOAT> col_min2(n_cols, std::numeric_limits<TRANSS_FLOAT>::infinity());
     {
       using namespace boost::accumulators;
       using VarAcc = accumulator_set<TRANSS_FLOAT, features<tag::variance(lazy)>>;
       for (std::size_t j=0; j < n_cols; ++j) {
         VarAcc acc;
         for (std::size_t i=0; i < n_rows; ++i) {
-          acc(coords[j*n_rows+i]);
-          col_min[j] = std::min(col_min[j], coords[j*n_rows+i]);
-          col_max[j] = std::max(col_max[j], coords[j*n_rows+i]);
+          TRANSS_FLOAT current_value = coords[j*n_rows+i];
+          acc(current_value);
+          col_min1[j] = std::min(col_min1[j], current_value);
+          if (col_min1[j] < current_value && current_value < col_min2[j]) {
+            col_min2[j] = current_value;
+          }
         }
         // collect resulting sigmas from accumulators
         sigmas[j] = sqrt(variance(acc));
@@ -107,62 +110,70 @@ int main_ocl(int argc, char* argv[]) {
                       //"#pragma OPENCL EXTENSION cl_khr_fp64: enable\n"
                       "#define TRANSS_FLOAT float\n"
                       "#define TRANSS_FLOAT4 float4\n"
+                      "#define TRANSS_FLOAT_K (-16.11809565f)\n"
 
                       "#define POW2(X) (X)*(X)\n"
                       "#define TWO_PI 6.283185307179586\n"
 
-                      "  __kernel void"
-                      "  partial_sums(uint n"
-                      "             , TRANSS_FLOAT p_s_y"
-                      "             , TRANSS_FLOAT p_s_x"
-                      "             , __global const TRANSS_FLOAT* y"
-                      "             , __global const TRANSS_FLOAT* x"
-                      "             , uint iy"
-                      "             , uint ix"
-                      "             , __global TRANSS_FLOAT4* S"
-                      "             , TRANSS_FLOAT prefac"
-                      "             , __global TRANSS_FLOAT* T) {"
-                      "    __local TRANSS_FLOAT4 S_loc[WGSIZE];"
-                      "    uint gid = get_global_id(0);"
-                      "    uint lid = get_local_id(0);"
-                      "    uint n_workgroups = get_num_groups(0);"
+                      "  __kernel void\n"
+                      "  partial_sums(uint n\n"
+                      "             , TRANSS_FLOAT p_s_y\n"
+                      "             , TRANSS_FLOAT p_s_x\n"
+                      "             , __global const TRANSS_FLOAT* y\n"
+                      "             , __global const TRANSS_FLOAT* x\n"
+                      "             , uint iy\n"
+                      "             , uint ix\n"
+                      "             , __global TRANSS_FLOAT4* S\n"
+                      "             , TRANSS_FLOAT m_y\n"
+                      "             , TRANSS_FLOAT m_x\n"
+                      "             , __global TRANSS_FLOAT* T) {\n"
+                      "    __local TRANSS_FLOAT4 S_loc[WGSIZE];\n"
+                      "    uint gid = get_global_id(0);\n"
+                      "    uint lid = get_local_id(0);\n"
+                      "    uint wid = get_group_id(0);\n"
+                      "    uint n_workgroups = get_num_groups(0);\n"
                                                                     // compute local values
-                      "    barrier(CLK_LOCAL_MEM_FENCE);"
-                      "    if (gid < N_ROWS) {"
-                      "      TRANSS_FLOAT x_n = x[n];"
-                      "      TRANSS_FLOAT x_ntau = x[n+TAU];"
-                      "      TRANSS_FLOAT x_i = x[gid];"
-                      "      TRANSS_FLOAT y_n = y[n];"
-                      "      TRANSS_FLOAT y_i = y[gid];"
-                      "      TRANSS_FLOAT s_y = exp(p_s_y * POW2(y_n-y_i));"
-                      "      TRANSS_FLOAT s_x = exp(p_s_x * POW2(x_n-x_i));"
-                      "      S_loc[lid] = (TRANSS_FLOAT4) (s_x"
-                      "                                   , exp(p_s_x * POW2(x_ntau-x_i)) * s_x * s_y"
-                      "                                   , s_x * s_y"
-                      "                                   , POW2(s_x));"
-                      "    } else {"
-                      "      S_loc[lid] = (TRANSS_FLOAT4) (0.0f, 0.0f, 0.0f, 0.0f);"
-                      "    }"
+                      "    barrier(CLK_LOCAL_MEM_FENCE);\n"
+                      "    if (gid < N_ROWS) {\n"
+                      "      TRANSS_FLOAT x_n = x[n];\n"
+                      "      TRANSS_FLOAT x_ntau = x[n+TAU];\n"
+                      "      TRANSS_FLOAT x_i = x[gid];\n"
+                      "      TRANSS_FLOAT y_n = y[n];\n"
+                      "      TRANSS_FLOAT y_i = y[gid];\n"
+                      "      TRANSS_FLOAT s_y = p_s_y * POW2(y_n-y_i);\n"
+                      "      TRANSS_FLOAT s_x = p_s_x * POW2(x_n-x_i);\n"
+                      "      TRANSS_FLOAT s_x_ntau = p_s_x * POW2(x_ntau-x_i);\n"
+                      "      s_y = (s_y - m_y < TRANSS_FLOAT_K) ? 0.0f : exp(s_y);\n"
+                      "      s_x = (s_x - m_x < TRANSS_FLOAT_K) ? 0.0f : exp(s_x);\n"
+                      "      s_x_ntau = (s_x_ntau - m_x < TRANSS_FLOAT_K) ? 0.0f : exp(s_x_ntau);\n"
+                      "      S_loc[lid] = (TRANSS_FLOAT4) (s_x\n"
+                      "                                  , s_x_ntau * s_x * s_y\n"
+                      "                                  , s_x * s_y\n"
+                      "                                  , POW2(s_x));\n"
+                      "    } else {\n"
+                      "      S_loc[lid] = (TRANSS_FLOAT4) (0.0f, 0.0f, 0.0f, 0.0f);\n"
+                      "    }\n"
                                                                     // accumulate S locally
-                      "    barrier(CLK_LOCAL_MEM_FENCE);"
-                      "    if (lid == 0) {"
-                      "      uint wid = get_group_id(0);"
-                      "      TRANSS_FLOAT4 S_acc = S_loc[0];"
-                      "      for (uint i=1; i < WGSIZE; ++i) {"
-                      "        S_acc += S_loc[i];"
-                      "      }"
-                      "      S[wid] = S_acc;"
-                      "    }"
+                      "    barrier(CLK_LOCAL_MEM_FENCE);\n"
+                      "    if (lid == 0) {\n"
+                      "      TRANSS_FLOAT4 S_acc = S_loc[0];\n"
+                      "      for (uint i=1; i < WGSIZE; ++i) {\n"
+                      "        S_acc += S_loc[i];\n"
+                      "      }\n"
+                      "      S[wid] = S_acc;\n"
+                      "    }\n"
                                                                     // accumulate S globally
-                      "    barrier(CLK_GLOBAL_MEM_FENCE);"
-                      "    if (gid == 0) {"
-                      "      TRANSS_FLOAT4 S_acc = (TRANSS_FLOAT4) (0.0f, 0.0f, 0.0f, 0.0f);"
-                      "      for (uint i=0; i < n_workgroups; ++i) {"
-                      "        S_acc += S[i];"
-                      "      }"
-                      "      T[iy*PCMAX+ix] += prefac * S_acc.s1 * log(TWO_PI * S_acc.s1 * S_acc.s0 / S_acc.s2 / S_acc.s3);"
-                      "    }"
-                      "  }"
+                      "    barrier(CLK_GLOBAL_MEM_FENCE);\n"
+                      "    if (gid == 0) {\n"
+                      "      TRANSS_FLOAT4 S_acc = (TRANSS_FLOAT4) (0.0f, 0.0f, 0.0f, 0.0f);\n"
+                      "      for (uint i=0; i < n_workgroups; ++i) {\n"
+                      "        S_acc += S[i];\n"
+                      "      }\n"
+                      "      S_acc.s0 = log(TWO_PI * S_acc.s1 * S_acc.s0 / S_acc.s2 / S_acc.s3);\n"
+                      "      S_acc.s1 = exp(log(S_acc.s1) + 2*m_x + m_y);\n"
+                      "      T[iy*PCMAX+ix] += S_acc.s0 * S_acc.s1;\n"
+                      "    }\n"
+                      "  }\n"
     ;
     cl::Program::Sources src(1, std::make_pair(src_partial_sums.c_str(), src_partial_sums.length()+1));
     prog = cl::Program(ctx, src);
@@ -186,50 +197,51 @@ int main_ocl(int argc, char* argv[]) {
     q.enqueueWriteBuffer(T_buf, CL_TRUE, 0, pc_max*pc_max*sizeof(TRANSS_FLOAT), T.data());
     // set default arguments for kernel
     knl.setArg(7, S_buf);
-    knl.setArg(9, T_buf);
+    knl.setArg(10, T_buf);
     // run computation
     for (unsigned int iy=0; iy < pc_max; ++iy) {
-      TRANSS_FLOAT prefac;
       q.enqueueWriteBuffer(y_buf, CL_TRUE, 0, n_rows*sizeof(TRANSS_FLOAT), &coords[iy*n_rows]);
+      TRANSS_FLOAT m_y = p_s[iy] * POW2(col_min2[iy] - col_min1[iy]);
       // off-diagonals
       for (unsigned int ix=iy+1; ix < pc_max; ++ix) {
         q.enqueueWriteBuffer(x_buf, CL_TRUE, 0, n_rows*sizeof(TRANSS_FLOAT), &coords[ix*n_rows]);
+        TRANSS_FLOAT m_x = p_s[ix] * POW2(col_min2[ix] - col_min1[ix]);
         // y -> x
-        prefac = pow(n_rows, -4.0/7.0) / (pow(2*M_PI, 3.0/2.0) * sigmas[iy]*sigmas[ix]*sigmas[ix]);
         knl.setArg(1, p_s[iy]);
         knl.setArg(2, p_s[ix]);
         knl.setArg(3, y_buf);
         knl.setArg(4, x_buf);
         knl.setArg(5, iy);
         knl.setArg(6, ix);
-        knl.setArg(8, prefac);
+        knl.setArg(8, m_y);
+        knl.setArg(9, m_x);
         for (unsigned int n=0; n < n_rows-tau; ++n) {
           knl.setArg(0, n);
           q.enqueueNDRangeKernel(knl, cl::NullRange, global, local);
         }
         // x -> y
-        prefac = pow(n_rows, -4.0/7.0) / (pow(2*M_PI, 3.0/2.0) * sigmas[ix]*sigmas[iy]*sigmas[iy]);
         knl.setArg(1, p_s[ix]);
         knl.setArg(2, p_s[iy]);
         knl.setArg(3, x_buf);
         knl.setArg(4, y_buf);
         knl.setArg(5, ix);
         knl.setArg(6, iy);
-        knl.setArg(8, prefac);
+        knl.setArg(8, m_x);
+        knl.setArg(9, m_y);
         for (unsigned int n=0; n < n_rows-tau; ++n) {
           knl.setArg(0, n);
           q.enqueueNDRangeKernel(knl, cl::NullRange, global, local);
         }
       }
       // diagonals
-      prefac = pow(n_rows, -4.0/7.0) / (pow(2*M_PI, 3.0/2.0) * sigmas[iy]*sigmas[iy]*sigmas[iy]);
       knl.setArg(1, p_s[iy]);
       knl.setArg(2, p_s[iy]);
       knl.setArg(3, y_buf);
       knl.setArg(4, y_buf);
       knl.setArg(5, iy);
       knl.setArg(6, iy);
-      knl.setArg(8, prefac);
+      knl.setArg(8, m_y);
+      knl.setArg(9, m_y);
       for (unsigned int n=0; n < n_rows-tau; ++n) {
         knl.setArg(0, n);
         q.enqueueNDRangeKernel(knl, cl::NullRange, global, local);
@@ -243,6 +255,7 @@ int main_ocl(int argc, char* argv[]) {
     for (unsigned int iy=0; iy < n_cols; ++iy) {
       for (unsigned int ix=0; ix < n_cols; ++ix) {
         Tools::IO::out() << " "
+//                         << T[iy*pc_max+ix] * pow(n_rows, -4.0/7.0) / (pow(2*M_PI, 3.0/2.0) * sigmas[iy]*sigmas[ix]*sigmas[ix]);
                          << T[iy*pc_max+ix];
       }
       Tools::IO::out() << "\n";

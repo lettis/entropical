@@ -159,6 +159,7 @@ int main_ocl(int argc, char* argv[]) {
                       "    }\n"
                                                                     // accumulate S locally
                       "    barrier(CLK_LOCAL_MEM_FENCE);\n"
+
 //                      "    if (lid == 0) {\n"
 //                      "      TRANSS_FLOAT4 S_acc = S_loc[0];\n"
 //                      "      for (uint i=1; i < WGSIZE; ++i) {\n"
@@ -166,9 +167,10 @@ int main_ocl(int argc, char* argv[]) {
 //                      "      }\n"
 //                      "      S[wid] = S_acc;\n"
 //                      "    }\n"
+
                       "    for(int i=group_size/2; i > 0; i>>=1) { \n"
                       "      if (lid < i) {\n"
-                      "        S_loc[lid] += S_loc[lid+i];
+                      "        S_loc[lid] += S_loc[lid+i];\n"
                       "      }\n"
                       "      barrier(CLK_LOCAL_MEM_FENCE);\n"
                       "    }\n"
@@ -176,6 +178,7 @@ int main_ocl(int argc, char* argv[]) {
                       "      S[wid] = S_loc[0];\n"
                       "    }\n"
                                                                     // accumulate S globally
+
 //                      "    if (gid == 0) {\n"
 //                      "      TRANSS_FLOAT4 S_acc = (TRANSS_FLOAT4) (0.0f, 0.0f, 0.0f, 0.0f);\n"
 //                      "      for (uint i=0; i < n_workgroups; ++i) {\n"
@@ -185,10 +188,11 @@ int main_ocl(int argc, char* argv[]) {
 //                      "      S_acc.s1 = exp(log(S_acc.s1) + 2*m_x + m_y);\n"
 //                      "      T[iy*PCMAX+ix] += S_acc.s0 * S_acc.s1;\n"
 //                      "    }\n"
+
                       "    barrier(CLK_GLOBAL_MEM_FENCE);\n"
                       "    for(int i=n_workgroups/2; i > 0; i>>=1) { \n"
                       "      if (lid == 0 && wid < i) {\n"
-                      "        S[wid] += S[wid+i];
+                      "        S[wid] += S[wid+i];\n"
                       "      }\n"
                       "      barrier(CLK_GLOBAL_MEM_FENCE);\n"
                       "    }\n"
@@ -279,8 +283,8 @@ int main_ocl(int argc, char* argv[]) {
     for (unsigned int iy=0; iy < n_cols; ++iy) {
       for (unsigned int ix=0; ix < n_cols; ++ix) {
         Tools::IO::out() << " "
-//                         << T[iy*pc_max+ix] * pow(n_rows, -4.0/7.0) / (pow(2*M_PI, 3.0/2.0) * sigmas[iy]*sigmas[ix]*sigmas[ix]);
-                         << T[iy*pc_max+ix];
+                         << T[iy*pc_max+ix] * pow(n_rows, -4.0/7.0) / (pow(2*M_PI, 3.0/2.0) * sigmas[iy]*sigmas[ix]*sigmas[ix]);
+//                         << T[iy*pc_max+ix];
       }
       Tools::IO::out() << "\n";
     }

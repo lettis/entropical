@@ -21,7 +21,7 @@ int main_ocl(int argc, char* argv[]) {
       // optional parameters
       ("pcmax", po::value<unsigned int>()->default_value(0), "max. PC to read (default: 0 == read all)")
       ("output,o", po::value<std::string>()->default_value(""), "output file (default: stdout)")
-      ("wgsize", po::value<unsigned int>()->default_value(64), "OpenCL workgroup size (default: 64)")
+      ("wgsize", po::value<unsigned int>()->default_value(128), "OpenCL workgroup size (must be multiple of 32; default: 128)")
       ("ngpu", po::value<unsigned int>()->default_value(1), "number of GPUs to use (default: 1) ATTENTION: MULTI-GPU NOT YET IMPLEMENTED.")
       ("help,h", po::bool_switch()->default_value(false), "show this help.");
     // option parsing, settings, checks
@@ -49,6 +49,9 @@ int main_ocl(int argc, char* argv[]) {
     unsigned int wgsize = args["wgsize"].as<unsigned int>();
     if (wgsize == 0) {
       std::cerr << "error: with a workgroup size of 0 work items, nothing can be computed." << std::endl;
+      return EXIT_FAILURE;
+    } else if (wgsize % 32 != 0) {
+      std::cerr << "error: workgroup size must be a multiple of 32." << std::endl;
       return EXIT_FAILURE;
     }
     unsigned int ngpu = args["ngpu"].as<unsigned int>();

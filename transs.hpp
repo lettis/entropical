@@ -10,8 +10,7 @@
 #include <memory>
 #include <boost/accumulators/accumulators.hpp>
 #include <boost/accumulators/statistics/variance.hpp>
+#include <omp.h>
 
 #include "tools.hpp"
-
-int main_ocl(int argc, char* argv[]);
 

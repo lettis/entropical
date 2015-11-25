@@ -1,7 +1,5 @@
 #pragma once
 
-#define TRANSS_FLOAT float
-
 #define POW2(X) (X)*(X)
 
 #include <iostream>

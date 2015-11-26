@@ -13,6 +13,7 @@ namespace Transs {
       std::size_t _n_values;
       std::vector<std::size_t> _box_of_state;
       std::vector<std::vector<std::size_t>> _boxes;
+      std::vector<std::vector<std::size_t>> _neighbors;
     };
   } // end namespace Transs::BoxedSearch
 } // end namespace Transs

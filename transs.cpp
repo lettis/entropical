@@ -78,10 +78,20 @@ int main(int argc, char* argv[]) {
     // compute transfer entropies
     std::vector<std::vector<float>> T(n_cols, std::vector<float>(n_cols, 0.0));
     {
-      for (y=0; y < n_cols; ++y) {
-        for (x=0; x < n_cols; ++x) {
+      for (x=0; x < n_cols; ++x) {
+        Transs::BoxedSearch::Boxes searchboxes(coords, x, bandwidths[x]);
+        for (y=0; y < n_cols; ++y) {
           for (n=0; n < n_rows-tau; ++n) {
-            //TODO p(x_n)
+            //TODO introduce coords, combined with x and y indices
+            std::array<float, 4> P = Transs::Epanechnikov::joint_probabilities( n
+                                                                              , tau
+                                                                              , coords
+                                                                              , y
+                                                                              , x
+                                                                              , bandwidths[y]
+                                                                              , bandwidths[x]
+                                                                              , searchboxes.neighbors_of_state(n));
+            T[y][x] += P[3] * log(P[3]*P[0]/P[1]/P[2]);
           }
         }
       }

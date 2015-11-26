@@ -81,9 +81,7 @@ int main(int argc, char* argv[]) {
       for (y=0; y < n_cols; ++y) {
         for (x=0; x < n_cols; ++x) {
           for (n=0; n < n_rows-tau; ++n) {
-            for (i=0; i < n_rows; ++i) {
-              //TODO Kernel call
-            }
+            //TODO p(x_n)
           }
         }
       }

@@ -1,0 +1,19 @@
+#pragma once
+
+namespace Transs {
+  namespace BoxedSearch {
+    class Boxes {
+     public:
+      Boxes(const std::vector<float>& values
+          , float box_size);
+      std::vector<std::size_t>
+      neighbors_of_state(std::size_t i);
+     protected:
+      std::size_t _n_boxes;
+      std::size_t _n_values;
+      std::vector<std::size_t> _box_of_state;
+      std::vector<std::vector<std::size_t>> _boxes;
+    };
+  } // end namespace Transs::BoxedSearch
+} // end namespace Transs
+

@@ -35,13 +35,16 @@ add_subdirectory(coords_file)
 find_package(Boost 1.49 COMPONENTS program_options REQUIRED)
 include_directories (${Boost_INCLUDE_DIR})
 
-find_package(MPI REQUIRED)
-include_directories (${MPI_CXX_INCLUDE_DIR})
+#find_package(MPI REQUIRED)
+#include_directories (${MPI_CXX_INCLUDE_DIR})
 
-add_executable(transs_mpi transs.cpp transs_mpi.cpp tools.cpp)
-target_link_libraries(transs_mpi ${Boost_LIBRARIES} ${MPI_CXX_LIBRARIES} coords_file)
-install(TARGETS transs_mpi RUNTIME DESTINATION .)
+#add_executable(transs_mpi transs.cpp transs_mpi.cpp tools.cpp)
+#target_link_libraries(transs_mpi ${Boost_LIBRARIES} ${MPI_CXX_LIBRARIES} coords_file)
+#install(TARGETS transs_mpi RUNTIME DESTINATION .)
 
+add_executable(transs transs.cpp tools.cpp density_kernels.cpp)
+target_link_libraries(transs ${Boost_LIBRARIES} coords_file)
+install(TARGETS transs RUNTIME DESTINATION .)
 
 #if (TRANSS_OCL)
 #  find_package(OpenCL)

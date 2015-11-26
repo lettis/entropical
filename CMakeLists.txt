@@ -42,7 +42,7 @@ include_directories (${Boost_INCLUDE_DIR})
 #target_link_libraries(transs_mpi ${Boost_LIBRARIES} ${MPI_CXX_LIBRARIES} coords_file)
 #install(TARGETS transs_mpi RUNTIME DESTINATION .)
 
-add_executable(transs transs.cpp tools.cpp density_kernels.cpp)
+add_executable(transs transs.cpp tools.cpp boxed_search.cpp density_kernels.cpp)
 target_link_libraries(transs ${Boost_LIBRARIES} coords_file)
 install(TARGETS transs RUNTIME DESTINATION .)
 

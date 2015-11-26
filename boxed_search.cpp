@@ -26,6 +26,7 @@ namespace Transs {
     Boxes::neighbors_of_state(std::size_t i) {
       std::vector<std::size_t> neighbors;
       std::size_t i_box = _box_of_state[i];
+//TODO: compute neighborhood of boxes once in constructor and return directly
       if (i_box == 0) {
         if (_n_boxes == 1) {
           neighbors = _boxes[0];

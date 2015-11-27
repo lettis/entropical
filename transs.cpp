@@ -73,7 +73,6 @@ int main(int argc, char* argv[]) {
     std::vector<float> bandwidths(n_cols);
     std::vector<float> col_min(n_cols,  std::numeric_limits<float>::infinity());
     std::vector<float> col_max(n_cols, -std::numeric_limits<float>::infinity());
-std::cout << "compute bandwidths" << std::endl;
     {
       using namespace boost::accumulators;
       using VarAcc = accumulator_set<float, features<tag::variance(lazy)>>;
@@ -89,17 +88,23 @@ std::cout << "compute bandwidths" << std::endl;
         bandwidths[j] = std::pow(n_rows, -1.0/7.0)*sigmas[j];
       }
     }
-std::cout << "compute T" << std::endl;
     // compute transfer entropies
     std::vector<std::vector<float>> T(n_cols, std::vector<float>(n_cols, 0.0));
     {
       std::size_t x, y, n;
+      auto probs_are_positive = [](std::array<float, 4> P) -> bool {
+        return (P[0] > 0.0f)
+            && (P[1] > 0.0f)
+            && (P[2] > 0.0f)
+            && (P[3] > 0.0f);
+      };
       for (x=0; x < n_cols; ++x) {
-std::cout << "compute search boxes" << std::endl;
         Transs::BoxedSearch::Boxes searchboxes(coords, n_rows, x, bandwidths[x]);
         for (y=0; y < n_cols; ++y) {
           for (n=0; n < n_rows-tau; ++n) {
-std::cout << n << " / " << n_rows-tau << std::endl;
+//if (n % 1000 == 0) {
+//  std::cout << y << " -> " << x << ": " << n << " / " << n_rows-tau << std::endl;
+//}
             std::array<float, 4> P = Transs::Epanechnikov::joint_probabilities( n
                                                                               , tau
                                                                               , coords
@@ -109,7 +114,9 @@ std::cout << n << " / " << n_rows-tau << std::endl;
                                                                               , bandwidths[y]
                                                                               , bandwidths[x]
                                                                               , searchboxes.neighbors_of_state(n));
-            T[y][x] += P[3] * log(P[3]*P[0]/P[1]/P[2]);
+            if (probs_are_positive(P)) {
+              T[y][x] += P[3] * log(P[3]*P[0]/P[1]/P[2]);
+            }
           }
         }
       }

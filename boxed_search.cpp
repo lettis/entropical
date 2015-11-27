@@ -14,15 +14,14 @@ namespace Transs {
                , float box_size)
       : _n_values(n_rows)
       , _box_of_state(n_rows) {
-      float min_val = std::numeric_limits<float>::min();
-      float max_val = std::numeric_limits<float>::max();
+      float min_val = std::numeric_limits<float>::max();
+      float max_val = std::numeric_limits<float>::min();
       for (std::size_t i=0; i < n_rows; ++i) {
         min_val = std::min(min_val, coords[selected_col*n_rows+i]);
         max_val = std::max(max_val, coords[selected_col*n_rows+i]);
       }
       _n_boxes = (std::size_t) ceil((max_val - min_val) / box_size);
       _boxes.resize(_n_boxes);
-std::cout << "n boxes: " << _n_boxes << std::endl;
       // assign states to boxes
       for (std::size_t i=0; i < _n_values; ++i) {
         std::size_t i_box = floor((coords[selected_col*n_rows+i] - min_val) / box_size);

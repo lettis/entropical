@@ -1,6 +1,19 @@
 
-#include "transs.hpp"
+#include <iostream>
+#include <fstream>
+#include <boost/program_options.hpp>
+#include <vector>
+#include <algorithm>
+#include <limits>
+#include <cmath>
+#include <memory>
+#include <boost/accumulators/accumulators.hpp>
+#include <boost/accumulators/statistics/variance.hpp>
+#include <omp.h>
+
+#include "tools.hpp"
 #include "density_kernels.hpp"
+#include "boxed_search.hpp"
 
 int main(int argc, char* argv[]) {
   namespace po = boost::program_options;
@@ -78,14 +91,16 @@ int main(int argc, char* argv[]) {
     // compute transfer entropies
     std::vector<std::vector<float>> T(n_cols, std::vector<float>(n_cols, 0.0));
     {
+      std::size_t x, y, n;
       for (x=0; x < n_cols; ++x) {
-        Transs::BoxedSearch::Boxes searchboxes(coords, x, bandwidths[x]);
+        Transs::BoxedSearch::Boxes searchboxes(coords, n_rows, x, bandwidths[x]);
         for (y=0; y < n_cols; ++y) {
           for (n=0; n < n_rows-tau; ++n) {
-            //TODO introduce coords, combined with x and y indices
             std::array<float, 4> P = Transs::Epanechnikov::joint_probabilities( n
                                                                               , tau
                                                                               , coords
+                                                                              , n_rows
+                                                                              , n_cols
                                                                               , y
                                                                               , x
                                                                               , bandwidths[y]

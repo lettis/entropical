@@ -6,25 +6,29 @@
 
 namespace Transs {
   namespace BoxedSearch {
-    Boxes::Boxes(const std::vector<float>& values
+    Boxes::Boxes(const float* coords
+               , std::size_t n_rows
+               , std::size_t selected_col
                , float box_size)
-      : _n_values(values.size())
-      , _box_of_state(_n_values) {
-      auto min_max_values = std::minmax(values);
-      float min_val = min_max_values.first;
-      float max_val = min_max_values.second;
+      : _n_values(n_rows)
+      , _box_of_state(n_rows) {
+      float min_val = std::numeric_limits<float>::min();
+      float max_val = std::numeric_limits<float>::max();
+      for (std::size_t i=0; i < n_rows; ++i) {
+        min_val = std::min(min_val, coords[selected_col*n_rows+i]);
+        max_val = std::max(max_val, coords[selected_col*n_rows+i]);
+      }
       _n_boxes = (std::size_t) ceil((max_val - min_val) / box_size);
       _boxes.resize(_n_boxes);
       // assign states to boxes
       for (std::size_t i=0; i < _n_values; ++i) {
-        std::size_t i_box = floor((values[i] - min_val) / box_size);
+        std::size_t i_box = floor((coords[selected_col*n_rows+i] - min_val) / box_size);
         _boxes[i_box].push_back(i);
         _box_of_state[i] = i_box;
       }
       // pre-compute extended neighbor boxes
       for (std::size_t i_box=0; i_box < _n_boxes; ++i_box) {
         std::vector<std::size_t> neighbors;
-        std::size_t i_box = _box_of_state[i];
         if (i_box == 0) {
           if (_n_boxes == 1) {
             neighbors = _boxes[0];

@@ -7,25 +7,28 @@ namespace Transs {
     std::array<float, 4>
     joint_probabilities(std::size_t n
                       , std::size_t tau
-                      , const std::vector<float>& y
-                      , const std::vector<float>& x
+                      , const float* coords
+                      , std::size_t n_rows
+                      , std::size_t n_cols
+                      , std::size_t y
+                      , std::size_t x
                       , float bandwidth_y
                       , float bandwidth_x
                       , const std::vector<std::size_t>& x_neighbor_boxes) {
-      float x_n = x[n];
-      float x_n_tau = x[n+tau];
-      float y_n = y[n];
+      float x_n = coords[x*n_rows+n];
+      float x_n_tau = coords[x*n_rows+n+tau];
+      float y_n = coords[y*n_rows+n];
       float h_x_2 = POW2(bandwidth_x);
       float h_y_2 = POW2(bandwidth_y);
       auto epanechnikov = [](float u2) -> float {return 0.75 * (1-u2);};
       std::array<float, 4> P = {0.0, 0.0, 0.0, 0.0};
       for (std::size_t i_neighbor: x_neighbor_boxes) {
-        u_x_n = POW2(x_n - x[i_neighbor]) / h_x_2;
+        float u_x_n = POW2(x_n - coords[x*n_rows+i_neighbor]) / h_x_2;
         if (u_x_n <= 1) {
           // P(x_n)
           P[0] += epanechnikov(u_x_n);
-          u_x_n_tau = POW2(x_n_tau - y[i_neighbor]) / h_x_2;
-          u_y_n = POW2(y_n - y[i_neighbor]) / h_y_2;
+          float u_x_n_tau = POW2(x_n_tau - coords[x*n_rows+i_neighbor]) / h_x_2;
+          float u_y_n = POW2(y_n - coords[y*n_rows+i_neighbor]) / h_y_2;
           if (u_x_n_tau <= 1) {
             // P(x_n, x_n_tau)
             P[1] += epanechnikov(u_x_n) * epanechnikov(u_x_n_tau);
@@ -40,10 +43,10 @@ namespace Transs {
           }
         }
       }
-      P[0] /= (x.size()*bandwidth_x);
-      P[1] /= (x.size()*POW2(bandwidth_x));
-      P[2] /= (x.size()*bandwidth_x*bandwidth_y);
-      P[3] /= (x.size()*POW2(bandwidth_x)*bandwidth_y);
+      P[0] /= (n_rows*bandwidth_x);
+      P[1] /= (n_rows*POW2(bandwidth_x));
+      P[2] /= (n_rows*bandwidth_x*bandwidth_y);
+      P[3] /= (n_rows*POW2(bandwidth_x)*bandwidth_y);
       return P;
     }
   } // end namespace Transs::Epanechnikov

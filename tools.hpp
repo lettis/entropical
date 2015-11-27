@@ -22,7 +22,7 @@
 #if defined(__INTEL_COMPILER)
   #define ASSUME_ALIGNED(c) __assume_aligned( (c), MEM_ALIGNMENT)
 #else
-  #define ASSUME_ALIGNED(c) (c) = (TRANSS_FLOAT*) __builtin_assume_aligned( (c), MEM_ALIGNMENT)
+  #define ASSUME_ALIGNED(c) (c) = (float*) __builtin_assume_aligned( (c), MEM_ALIGNMENT)
 #endif
 
 namespace Tools {

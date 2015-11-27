@@ -1,11 +1,14 @@
 #pragma once
 
+#include <vector>
+
 namespace Transs {
   namespace BoxedSearch {
     class Boxes {
      public:
-       //TODO change vector to 'coords' field with given column
-      Boxes(const std::vector<float>& values
+      Boxes(const float* coords
+          , std::size_t n_rows
+          , std::size_t selected_col
           , float box_size);
       std::vector<std::size_t>
       neighbors_of_state(std::size_t i);

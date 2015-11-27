@@ -9,8 +9,11 @@ namespace Transs {
     std::array<float, 4>
     joint_probabilities(std::size_t n
                       , std::size_t tau
-                      , const std::vector<float>& y
-                      , const std::vector<float>& x
+                      , const float* coords
+                      , std::size_t n_rows
+                      , std::size_t n_cols
+                      , std::size_t y
+                      , std::size_t x
                       , float bandwidth_y
                       , float bandwidth_x
                       , const std::vector<std::size_t>& x_neighbor_boxes);

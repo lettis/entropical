@@ -42,10 +42,6 @@ namespace Transs {
           }
         }
       }
-      P[0] /= (n_rows*bandwidth_x);
-      P[1] /= (n_rows*POW2(bandwidth_x));
-      P[2] /= (n_rows*bandwidth_x*bandwidth_y);
-      P[3] /= (n_rows*POW2(bandwidth_x)*bandwidth_y);
       return P;
     }
   } // end namespace Transs::Epanechnikov

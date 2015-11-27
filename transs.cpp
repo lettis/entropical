@@ -73,6 +73,7 @@ int main(int argc, char* argv[]) {
     std::vector<float> bandwidths(n_cols);
     std::vector<float> col_min(n_cols,  std::numeric_limits<float>::infinity());
     std::vector<float> col_max(n_cols, -std::numeric_limits<float>::infinity());
+std::cout << "compute bandwidths" << std::endl;
     {
       using namespace boost::accumulators;
       using VarAcc = accumulator_set<float, features<tag::variance(lazy)>>;
@@ -88,19 +89,21 @@ int main(int argc, char* argv[]) {
         bandwidths[j] = std::pow(n_rows, -1.0/7.0)*sigmas[j];
       }
     }
+std::cout << "compute T" << std::endl;
     // compute transfer entropies
     std::vector<std::vector<float>> T(n_cols, std::vector<float>(n_cols, 0.0));
     {
       std::size_t x, y, n;
       for (x=0; x < n_cols; ++x) {
+std::cout << "compute search boxes" << std::endl;
         Transs::BoxedSearch::Boxes searchboxes(coords, n_rows, x, bandwidths[x]);
         for (y=0; y < n_cols; ++y) {
           for (n=0; n < n_rows-tau; ++n) {
+std::cout << n << " / " << n_rows-tau << std::endl;
             std::array<float, 4> P = Transs::Epanechnikov::joint_probabilities( n
                                                                               , tau
                                                                               , coords
                                                                               , n_rows
-                                                                              , n_cols
                                                                               , y
                                                                               , x
                                                                               , bandwidths[y]
@@ -111,6 +114,7 @@ int main(int argc, char* argv[]) {
         }
       }
     }
+std::cout << "cleanup" << std::endl;
     // clean up
     Tools::IO::free_coords(coords);
     // output

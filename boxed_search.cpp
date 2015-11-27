@@ -4,6 +4,8 @@
 #include <algorithm>
 #include <cmath>
 
+#include <iostream>
+
 namespace Transs {
   namespace BoxedSearch {
     Boxes::Boxes(const float* coords
@@ -20,6 +22,7 @@ namespace Transs {
       }
       _n_boxes = (std::size_t) ceil((max_val - min_val) / box_size);
       _boxes.resize(_n_boxes);
+std::cout << "n boxes: " << _n_boxes << std::endl;
       // assign states to boxes
       for (std::size_t i=0; i < _n_values; ++i) {
         std::size_t i_box = floor((coords[selected_col*n_rows+i] - min_val) / box_size);

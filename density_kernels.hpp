@@ -11,7 +11,6 @@ namespace Transs {
                       , std::size_t tau
                       , const float* coords
                       , std::size_t n_rows
-                      , std::size_t n_cols
                       , std::size_t y
                       , std::size_t x
                       , float bandwidth_y

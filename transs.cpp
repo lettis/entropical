@@ -98,19 +98,27 @@ int main(int argc, char* argv[]) {
             && (P[2] > 0.0f)
             && (P[3] > 0.0f);
       };
-      auto normalized_probs = [&](std::array<float, 4> P, std::size_t y, std::size_t x) -> std::array<float, 4> {
+      auto normalized_probs = [&n_rows,&bandwidths](std::array<float, 4> P, std::size_t y, std::size_t x) -> std::array<float, 4> {
         return {P[0] / (n_rows*bandwidths[x])
               , P[1] / (n_rows*POW2(bandwidths[x]))
               , P[2] / (n_rows*bandwidths[x]*bandwidths[y])
               , P[3] / (n_rows*POW2(bandwidths[x])*bandwidths[y])};
       };
+      std::vector<Transs::BoxedSearch::Boxes> searchboxes(n_cols);
+      #pragma omp parallel for default(none)\
+                               private(x)\
+                               firstprivate(n_cols,n_rows)\
+                               shared(searchboxes,coords,bandwidths)
       for (x=0; x < n_cols; ++x) {
-        std::array<float, 4> P;
-        Transs::BoxedSearch::Boxes searchboxes(coords, n_rows, x, bandwidths[x]);
-        #pragma omp parallel for default(none)\
-                                 private(y,n,P)\
-                                 firstprivate(tau,n_rows,n_cols,x,probs_are_positive,normalized_probs)\
-                                 shared(coords,bandwidths,searchboxes,T)
+        searchboxes[x] = Transs::BoxedSearch::Boxes(coords, n_rows, x, bandwidths[x]);
+      }
+      std::array<float, 4> P;
+      #pragma omp parallel for default(none)\
+                               private(x,y,n,P)\
+                               firstprivate(tau,n_rows,n_cols)\
+                               shared(coords,bandwidths,T,probs_are_positive,normalized_probs,searchboxes)\
+                               collapse(2)
+      for (x=0; x < n_cols; ++x) {
         for (y=0; y < n_cols; ++y) {
           for (n=0; n < n_rows-tau; ++n) {
             P = Transs::Epanechnikov::joint_probabilities( n
@@ -121,7 +129,7 @@ int main(int argc, char* argv[]) {
                                                          , x
                                                          , bandwidths[y]
                                                          , bandwidths[x]
-                                                         , searchboxes.neighbors_of_state(n));
+                                                         , searchboxes[x].neighbors_of_state(n));
             if (probs_are_positive(P)) {
               P = normalized_probs(P, y, x);
               T[y][x] += P[3] * log(P[3]*P[0]/P[1]/P[2]);

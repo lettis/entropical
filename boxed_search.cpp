@@ -8,6 +8,8 @@
 
 namespace Transs {
   namespace BoxedSearch {
+    Boxes::Boxes() {
+    }
     Boxes::Boxes(const float* coords
                , std::size_t n_rows
                , std::size_t selected_col

@@ -6,6 +6,7 @@ namespace Transs {
   namespace BoxedSearch {
     class Boxes {
      public:
+      Boxes();
       Boxes(const float* coords
           , std::size_t n_rows
           , std::size_t selected_col

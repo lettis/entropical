@@ -2,6 +2,7 @@
 #include "boxed_search.hpp"
 
 #include <algorithm>
+#include <iterator>
 #include <cmath>
 
 #include <iostream>
@@ -10,6 +11,7 @@ namespace Transs {
   namespace BoxedSearch {
     Boxes::Boxes() {
     }
+
     Boxes::Boxes(const float* coords
                , std::size_t n_rows
                , std::size_t selected_col
@@ -54,9 +56,18 @@ namespace Transs {
         _neighbors.push_back(neighbors);
       }
     }
+
     std::vector<std::size_t>
     Boxes::neighbors_of_state(std::size_t i) {
       return _neighbors[_box_of_state[i]];
+    }
+
+    std::vector<std::size_t>
+    joint_neighborhood(std::vector n1
+                     , std::vector n2) {
+      std::vector<std::size_t> joint_nh;
+      std::set_intersection(n1.begin(), n1.end(), n2.begin(), n2.end(), std::back_inserter(joint_nh));
+      return joint_nh;
     }
   } // end namespace Transs::BoxedSearch
 } // end namespace Transs

@@ -7,6 +7,7 @@
 #include <limits>
 #include <cmath>
 #include <memory>
+#include <chrono>
 #include <boost/accumulators/accumulators.hpp>
 #include <boost/accumulators/statistics/variance.hpp>
 #include <omp.h>
@@ -100,41 +101,36 @@ int main(int argc, char* argv[]) {
       for (x=0; x < n_cols; ++x) {
         searchboxes[x] = Transs::BoxedSearch::Boxes(coords, n_rows, x, bandwidths[x]);
       }
-//TODO: searchboxes report
-
-
-      enum {X, XTAU};
+      for (x=0; x < n_cols; ++x) {
+        std::cerr << "no of boxes in dim. " << x << ":  " << searchboxes[x].n_boxes() << std::endl;
+      }
+      enum {X, TAU};
       enum {X_Y, X_XTAU_Y, Y_YTAU_X};
       std::vector<std::array<float, 2>> P(n_cols);
       std::array<float, 3> P_joint;
-      std::vector<std::vector<std::size_t>> neighbors(n_cols);
+      #pragma omp parallel for default(none)\
+                               private(n,x,y,P_joint)\
+                               firstprivate(P,n_cols,n_rows,tau)\
+                               shared(std::cout,coords,bandwidths,searchboxes,T)\
+                               schedule(dynamic)
       for (n=0; n < n_rows-tau; ++n) {
-
-//TODO parallelism inside n-loop?
-
         // compute p(x_n) and p(x_n, x_n+tau)
-        // while backtracking the list of neighbors of x_n
         for (x=0; x < n_cols; ++x) {
-          using Transs::Epanechnikov;
+          using namespace Transs::Epanechnikov;
           std::tie(P[x][X]
-                 , P[x][XTAU]
-                 , neighbors[x]) = time_lagged_probabilities(n
-                                                           , tau
-                                                           , coords
-                                                           , n_rows
-                                                           , x
-                                                           , bandwidths[x]
-                                                           , searchboxes[x].neighbors_of_state(n));
-          if (P[x][X] == 0) {
-            std::cerr << "# P[" << x << "][X] = 0  for n = " << n << std::endl;
-            exit(EXIT_FAILURE);
-          }
+                 , P[x][TAU]) = time_lagged_probabilities(n
+                                                        , tau
+                                                        , coords
+                                                        , n_rows
+                                                        , x
+                                                        , bandwidths[x]
+                                                        , searchboxes[x].neighbors_of_state(n));
         }
         // compute joint probabilities
         // p(x_n, y_n),  p(x_n, y_n, x_n+tau),  p(x_n, y_n, y_n+tau)
         for (x=0; x < n_cols; ++x) {
-          for (y=0; y < x; ++y) {
-            using Transs::Epanechnikov;
+          for (y=x+1; y < n_cols; ++y) {
+            using namespace Transs::Epanechnikov;
             std::tie(P_joint[X_Y]
                    , P_joint[X_XTAU_Y]
                    , P_joint[Y_YTAU_X]) = joint_probabilities(n
@@ -145,25 +141,30 @@ int main(int argc, char* argv[]) {
                                                             , y
                                                             , bandwidths[x]
                                                             , bandwidths[y]
-                                                            , joint_neighborhood(neighbors[x], neighbors[y]));
+                                                            , Transs::BoxedSearch::joint_neighborhood(searchboxes[x].neighbors_of_state(n)
+                                                                                                    , searchboxes[y].neighbors_of_state(n)));
             if (P_joint[X_Y] > 0) {
-              if (P_joint[X_XTAU_Y] > 0) {
-                T[y][x] += P_joint[X_XTAU_Y] * log(P_joint[X_XTAU_Y] * P[x][X] / P_joint[X_Y] / P[x][XTAU]) / n_rows;
+              if (P_joint[X_XTAU_Y] > 0
+               && P[x][TAU] > 0) {
+                #pragma omp atomic
+                T[y][x] += P_joint[X_XTAU_Y] * log(P_joint[X_XTAU_Y] * P[x][X] / P_joint[X_Y] / P[x][TAU]);
               }
-              if (P_joint[Y_YTAU_X] > 0) {
-                T[x][y] += P_joint[Y_YTAU_X] * log(P_joint[Y_YTAU_X] * P[y][X] / P_joint[X_Y] / P[y][YTAU]) / n_rows;
+              if (P_joint[Y_YTAU_X] > 0
+               && P[y][TAU] > 0) {
+                #pragma omp atomic
+                T[x][y] += P_joint[Y_YTAU_X] * log(P_joint[Y_YTAU_X] * P[y][X] / P_joint[X_Y] / P[y][TAU]);
               }
             }
             // ... T[x][x] trivially zero
           }
         }
       }
-      // normalize by bandwidths
-      for (x=0; x < n_cols; ++x) {
-        for (y=0; y < x; ++y) {
-          T[y][x] /= POW2(bandwidths[x])*bandwidths[y];
-          T[x][y] /= POW2(bandwidths[y])*bandwidths[x];
-        }
+    }
+    // normalize by bandwidths
+    for (std::size_t x=0; x < n_cols; ++x) {
+      for (std::size_t y=0; y < x; ++y) {
+        T[y][x] /= n_rows*POW2(bandwidths[x])*bandwidths[y];
+        T[x][y] /= n_rows*POW2(bandwidths[y])*bandwidths[x];
       }
     }
     // clean up

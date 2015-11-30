@@ -55,6 +55,10 @@ namespace Transs {
         }
         _neighbors.push_back(neighbors);
       }
+      // sort extended neighbor boxes
+      for (std::vector<std::size_t>& v: _neighbors) {
+        std::sort(v.begin(), v.end());
+      }
     }
 
     std::vector<std::size_t>
@@ -63,8 +67,8 @@ namespace Transs {
     }
 
     std::vector<std::size_t>
-    joint_neighborhood(std::vector n1
-                     , std::vector n2) {
+    joint_neighborhood(std::vector<std::size_t> n1
+                     , std::vector<std::size_t> n2) {
       std::vector<std::size_t> joint_nh;
       std::set_intersection(n1.begin(), n1.end(), n2.begin(), n2.end(), std::back_inserter(joint_nh));
       return joint_nh;

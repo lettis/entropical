@@ -16,11 +16,11 @@ namespace Transs {
       std::vector<std::size_t>
       neighbors_of_state(std::size_t i);
 
-      const std::size_t n_boxes() const {
+      std::size_t n_boxes() const {
         return _n_boxes;
       }
 
-      const std::size_t n_values() const {
+      std::size_t n_values() const {
         return _n_values;
       }
      protected:
@@ -32,8 +32,8 @@ namespace Transs {
     };
 
     std::vector<std::size_t>
-    joint_neighborhood(std::vector n1
-                     , std::vector n2);
+    joint_neighborhood(std::vector<std::size_t> n1
+                     , std::vector<std::size_t> n2);
   } // end namespace Transs::BoxedSearch
 } // end namespace Transs
 

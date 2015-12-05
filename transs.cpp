@@ -1,27 +1,26 @@
 
 #include <iostream>
-#include <fstream>
-#include <boost/program_options.hpp>
+//#include <fstream>
 #include <vector>
 #include <algorithm>
 #include <limits>
 #include <cmath>
-#include <memory>
-#include <chrono>
+//#include <memory>
+#include <boost/program_options.hpp>
 #include <boost/accumulators/accumulators.hpp>
 #include <boost/accumulators/statistics/variance.hpp>
 #include <omp.h>
 
 #include "tools.hpp"
-#include "density_kernels.hpp"
-#include "boxed_search.hpp"
+#include "boxedsearch.hpp"
+#include "epanechnikov_omp.hpp"
 
 int main(int argc, char* argv[]) {
   namespace po = boost::program_options;
   po::variables_map args;
   po::options_description opts(std::string(argv[0]).append(
     " [OPTIONS] FILE\n\n"
-    "compute transfer entropies between principal components"));
+    "compute transfer entropies between principal components (or other observables)"));
   try {
     opts.add_options()
       // required options
@@ -31,6 +30,7 @@ int main(int argc, char* argv[]) {
       ("pcmax", po::value<unsigned int>()->default_value(0), "max. PC to read (default: 0 == read all)")
       ("output,o", po::value<std::string>()->default_value(""), "output file (default: stdout)")
       ("nthreads,n", po::value<unsigned int>()->default_value(0), "number of parallel threads (default: 0 == read from OMP_NUM_THREADS)")
+      ("verbose,v", po::bool_switch()->default_value(false), "verbose output.");
       ("help,h", po::bool_switch()->default_value(false), "show this help.");
     // option parsing, settings, checks
     po::positional_options_description pos_opts;
@@ -41,6 +41,7 @@ int main(int argc, char* argv[]) {
       std::cout << opts << std::endl;
       return EXIT_SUCCESS;
     }
+    bool verbose = args["verbose"].as<bool>();
     unsigned int nthreads = args["nthreads"].as<unsigned int>();
     if (nthreads > 0) {
       omp_set_num_threads(nthreads);
@@ -69,8 +70,7 @@ int main(int argc, char* argv[]) {
       // read only until given PC
       std::tie(coords, n_rows, n_cols) = Tools::IO::read_coords<float>(fname_input, 'C', Tools::range<std::size_t>(0, pc_max, 1));
     }
-    // compute sigmas (and bandwidths) for every dimension
-    std::vector<float> sigmas(n_cols);
+    // compute bandwidths for every dimension
     std::vector<float> bandwidths(n_cols);
     std::vector<float> col_min(n_cols,  std::numeric_limits<float>::infinity());
     std::vector<float> col_max(n_cols, -std::numeric_limits<float>::infinity());
@@ -84,14 +84,14 @@ int main(int argc, char* argv[]) {
           col_min[j] = std::min(col_min[j], coords[j*n_rows+i]);
           col_max[j] = std::max(col_max[j], coords[j*n_rows+i]);
         }
-        // collect resulting sigmas from accumulators
-        sigmas[j] = sqrt(variance(acc));
-        bandwidths[j] = std::pow(n_rows, -1.0/7.0)*sigmas[j];
+        bandwidths[j] = std::pow(n_rows, -1.0/7.0)*sqrt(variance(acc));
       }
     }
     // compute transfer entropies
     std::vector<std::vector<float>> T(n_cols, std::vector<float>(n_cols, 0.0));
     {
+      using namespace Transs::Kernel::Epanechnikov;
+      // compute search boxes for fast neighbor search
       std::size_t x, y, n;
       std::vector<Transs::BoxedSearch::Boxes> searchboxes(n_cols);
       #pragma omp parallel for default(none)\
@@ -101,70 +101,22 @@ int main(int argc, char* argv[]) {
       for (x=0; x < n_cols; ++x) {
         searchboxes[x] = Transs::BoxedSearch::Boxes(coords, n_rows, x, bandwidths[x]);
       }
-      for (x=0; x < n_cols; ++x) {
+      for (x=0; verbose && (x < n_cols); ++x) {
         std::cerr << "no of boxes in dim. " << x << ":  " << searchboxes[x].n_boxes() << std::endl;
       }
-      enum {X, TAU};
-      enum {X_Y, X_XTAU_Y, Y_YTAU_X};
-      std::vector<std::array<float, 2>> P(n_cols);
-      std::array<float, 3> P_joint;
-      #pragma omp parallel for default(none)\
-                               private(n,x,y,P_joint)\
-                               firstprivate(P,n_cols,n_rows,tau)\
-                               shared(std::cout,coords,bandwidths,searchboxes,T)\
-                               schedule(dynamic)
-      for (n=0; n < n_rows-tau; ++n) {
-        // compute p(x_n) and p(x_n, x_n+tau)
-        for (x=0; x < n_cols; ++x) {
-          using namespace Transs::Epanechnikov;
-          std::tie(P[x][X]
-                 , P[x][TAU]) = time_lagged_probabilities(n
-                                                        , tau
-                                                        , coords
-                                                        , n_rows
-                                                        , x
-                                                        , bandwidths[x]
-                                                        , searchboxes[x].neighbors_of_state(n));
+      for (x=0; x < n_cols; ++x) {
+        for (y=x+1; y < n_cols; ++y) {
+          std::array<float, 2> _T = Transs::Epanechnikov::OMP::transfer_entropies(tau
+                                                                                , coords
+                                                                                , n_rows
+                                                                                , x
+                                                                                , y
+                                                                                , bandwidths
+                                                                                , searchboxes);
+          T[x][y] = _T[XY];
+          T[y][x] = _T[YX];
+          // T[x][x] == 0  by construction
         }
-        // compute joint probabilities
-        // p(x_n, y_n),  p(x_n, y_n, x_n+tau),  p(x_n, y_n, y_n+tau)
-        for (x=0; x < n_cols; ++x) {
-          for (y=x+1; y < n_cols; ++y) {
-            using namespace Transs::Epanechnikov;
-            std::tie(P_joint[X_Y]
-                   , P_joint[X_XTAU_Y]
-                   , P_joint[Y_YTAU_X]) = joint_probabilities(n
-                                                            , tau
-                                                            , coords
-                                                            , n_rows
-                                                            , x
-                                                            , y
-                                                            , bandwidths[x]
-                                                            , bandwidths[y]
-                                                            , Transs::BoxedSearch::joint_neighborhood(searchboxes[x].neighbors_of_state(n)
-                                                                                                    , searchboxes[y].neighbors_of_state(n)));
-            if (P_joint[X_Y] > 0) {
-              if (P_joint[X_XTAU_Y] > 0
-               && P[x][TAU] > 0) {
-                #pragma omp atomic
-                T[y][x] += P_joint[X_XTAU_Y] * log(P_joint[X_XTAU_Y] * P[x][X] / P_joint[X_Y] / P[x][TAU]);
-              }
-              if (P_joint[Y_YTAU_X] > 0
-               && P[y][TAU] > 0) {
-                #pragma omp atomic
-                T[x][y] += P_joint[Y_YTAU_X] * log(P_joint[Y_YTAU_X] * P[y][X] / P_joint[X_Y] / P[y][TAU]);
-              }
-            }
-            // ... T[x][x] trivially zero
-          }
-        }
-      }
-    }
-    // normalize by bandwidths
-    for (std::size_t x=0; x < n_cols; ++x) {
-      for (std::size_t y=0; y < x; ++y) {
-        T[y][x] /= n_rows*POW2(bandwidths[x])*bandwidths[y];
-        T[x][y] /= n_rows*POW2(bandwidths[y])*bandwidths[x];
       }
     }
     // clean up

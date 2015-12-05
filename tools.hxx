@@ -1,6 +1,8 @@
 
 #include <iterator>
 #include <map>
+#include <boost/accumulators/accumulators.hpp>
+#include <boost/accumulators/statistics/sum_kahan.hpp>
 
 namespace Tools {
 
@@ -12,6 +14,17 @@ namespace Tools {
       result.push_back(i);
     }
     return result;
+  }
+
+  template <typename FLOAT>
+  FLOAT
+  kahan_sum(const std::vector<FLOAT>& xs) {
+    using namespace boost::accumulators;
+    accumulator_set<FLOAT, stats<tag::sum_kahan>> acc;
+    for (FLOAT x: xs) {
+      acc(x);
+    }
+    return sum_kahan(acc);
   }
 
 namespace IO {

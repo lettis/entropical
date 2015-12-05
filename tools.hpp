@@ -26,11 +26,18 @@
 #endif
 
 namespace Tools {
-
+  /**
+   * emulate python range function
+   */
   template <typename NUM>
   std::vector<NUM>
   range(NUM from, NUM to, NUM step);
-
+  /**
+   * precise sum of floats by using Kahan summation
+   */
+  template <typename FLOAT>
+  FLOAT
+  kahan_sum(const std::vector<FLOAT>& xs);
 
 namespace String {
   /**

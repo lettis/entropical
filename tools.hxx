@@ -20,7 +20,7 @@ namespace Tools {
   FLOAT
   kahan_sum(const std::vector<FLOAT>& xs) {
     using namespace boost::accumulators;
-    accumulator_set<FLOAT, stats<tag::sum_kahan>> acc;
+    accumulator_set<FLOAT, features<tag::sum_kahan>> acc;
     for (FLOAT x: xs) {
       acc(x);
     }

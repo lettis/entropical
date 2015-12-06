@@ -14,7 +14,7 @@ namespace Transs {
           , float box_size);
 
       std::vector<std::size_t>
-      neighbors_of_state(std::size_t i);
+      neighbors_of_state_ordered(std::size_t i) const;
 
       std::size_t n_boxes() const {
         return _n_boxes;

@@ -1,16 +1,15 @@
 
 #include <iostream>
-//#include <fstream>
 #include <vector>
 #include <algorithm>
 #include <limits>
 #include <cmath>
-//#include <memory>
 #include <boost/program_options.hpp>
 #include <boost/accumulators/accumulators.hpp>
 #include <boost/accumulators/statistics/variance.hpp>
 #include <omp.h>
 
+#include "transs.hpp"
 #include "tools.hpp"
 #include "boxedsearch.hpp"
 #include "epanechnikov_omp.hpp"
@@ -30,7 +29,7 @@ int main(int argc, char* argv[]) {
       ("pcmax", po::value<unsigned int>()->default_value(0), "max. PC to read (default: 0 == read all)")
       ("output,o", po::value<std::string>()->default_value(""), "output file (default: stdout)")
       ("nthreads,n", po::value<unsigned int>()->default_value(0), "number of parallel threads (default: 0 == read from OMP_NUM_THREADS)")
-      ("verbose,v", po::bool_switch()->default_value(false), "verbose output.");
+      ("verbose,v", po::bool_switch()->default_value(false), "verbose output.")
       ("help,h", po::bool_switch()->default_value(false), "show this help.");
     // option parsing, settings, checks
     po::positional_options_description pos_opts;
@@ -90,9 +89,9 @@ int main(int argc, char* argv[]) {
     // compute transfer entropies
     std::vector<std::vector<float>> T(n_cols, std::vector<float>(n_cols, 0.0));
     {
-      using namespace Transs::Kernel::Epanechnikov;
+      using namespace Transs::Epanechnikov::OMP;
       // compute search boxes for fast neighbor search
-      std::size_t x, y, n;
+      std::size_t x, y;
       std::vector<Transs::BoxedSearch::Boxes> searchboxes(n_cols);
       #pragma omp parallel for default(none)\
                                private(x)\
@@ -106,15 +105,15 @@ int main(int argc, char* argv[]) {
       }
       for (x=0; x < n_cols; ++x) {
         for (y=x+1; y < n_cols; ++y) {
-          std::array<float, 2> _T = Transs::Epanechnikov::OMP::transfer_entropies(tau
-                                                                                , coords
-                                                                                , n_rows
-                                                                                , x
-                                                                                , y
-                                                                                , bandwidths
-                                                                                , searchboxes);
-          T[x][y] = _T[XY];
-          T[y][x] = _T[YX];
+          std::array<float, Transs::N_T> _T = Transs::Epanechnikov::OMP::transfer_entropies(tau
+                                                                                          , coords
+                                                                                          , n_rows
+                                                                                          , x
+                                                                                          , y
+                                                                                          , bandwidths
+                                                                                          , searchboxes);
+          T[x][y] = _T[Transs::XY];
+          T[y][x] = _T[Transs::YX];
           // T[x][x] == 0  by construction
         }
       }

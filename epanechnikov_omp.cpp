@@ -1,6 +1,6 @@
 
 #include "tools.hpp"
-#include "density_kernels.hpp"
+#include "epanechnikov_omp.hpp"
 
 namespace Transs {
   namespace Epanechnikov {
@@ -28,6 +28,7 @@ namespace Transs {
                                        , std::size_t y
                                        , const std::vector<float>& bandwidths
                                        , const std::vector<Transs::BoxedSearch::Boxes>& searchboxes) {
+          std::array<float, N_PROBS> P;
           std::size_t ntau = n+tau;
           float x_n = coords[x*n_rows+n];
           float x_ntau = coords[x*n_rows+ntau];
@@ -35,16 +36,66 @@ namespace Transs {
           float y_ntau = coords[y*n_rows+ntau];
           float hx_squared = POW2(bandwidths[x]);
           float hy_squared = POW2(bandwidths[x]);
-          std::array<float, N_PROBS> P;
           for (std::size_t i=0; i < N_PROBS; ++i) {
             P[i] = 0.0f;
           }
-          auto epanechnikov_1d = [](float u_squared) -> float {return 0.75 * (1-u_squared);};
+          auto epanechnikov_1d = [](float u_squared) -> float {return (u_squared <= 1.0f ? 0.75 * (1-u_squared) : 0.0f);};
           auto ux_squared = [&](float x1, float x2) -> float {return POW2(x1-x2) / hx_squared;};
           auto uy_squared = [&](float y1, float y2) -> float {return POW2(y1-y2) / hy_squared;};
           std::size_t ix=0, ixtau=0, iy=0, iytau=0;
-          //TODO loop through neighbors
-
+          std::vector<std::size_t> neighbors_x = searchboxes[x].neighbors_of_state_ordered(n);
+          std::vector<std::size_t> neighbors_y = searchboxes[y].neighbors_of_state_ordered(n);
+          std::vector<std::size_t> neighbors_xtau = searchboxes[x].neighbors_of_state_ordered(ntau);
+          std::vector<std::size_t> neighbors_ytau = searchboxes[y].neighbors_of_state_ordered(ntau);
+          // the following loop works, because neighbors
+          // are sorted in ascending order by default
+          // as given by neighbors_of_state_ordered(...)
+          while (ix < neighbors_x.size() && iy < neighbors_y.size()) {
+            // time-lagged neighbors only interesting if same neighbors as without time-lag
+            while (neighbors_xtau[ixtau] < neighbors_x[ix] && ixtau < neighbors_xtau.size()) {
+              ++ixtau;
+            }
+            while (neighbors_ytau[iytau] < neighbors_y[iy] && iytau < neighbors_ytau.size()) {
+              ++iytau;
+            }
+            bool propagate_x = false;
+            bool propagate_y = false;
+            std::array<float, N_PROBS> P_tmp = {0,0,0,0,0,0,0};
+            // probabilities for x and time-lagged x
+            if (neighbors_x[ix] <= neighbors_y[iy]) {
+              propagate_x = true;
+              P_tmp[X] = epanechnikov_1d(ux_squared(x_n, coords[x*n_rows+neighbors_x[ix]]));
+              if (neighbors_xtau[ixtau] == neighbors_x[ix]) {
+                P_tmp[X_XTAU] = P_tmp[X] * epanechnikov_1d(ux_squared(x_ntau, coords[x*n_rows+neighbors_xtau[ixtau]]));
+              }
+            }
+            // probabilities for y and time-lagged y
+            if (neighbors_y[iy] <= neighbors_x[ix]) {
+              propagate_y = true;
+              P_tmp[Y] = epanechnikov_1d(uy_squared(y_n, coords[y*n_rows+neighbors_y[iy]]));
+              if (neighbors_ytau[iytau] == neighbors_y[iy]) {
+                P_tmp[Y_YTAU] = P_tmp[Y] * epanechnikov_1d(uy_squared(y_ntau, coords[y*n_rows+neighbors_ytau[iytau]]));
+              }
+            }
+            // joint probabilities
+            if (propagate_x && propagate_y) {
+              P_tmp[X_XTAU_Y] = P_tmp[X_XTAU] * P_tmp[Y];
+              P_tmp[Y_YTAU_X] = P_tmp[Y_YTAU] * P_tmp[X];
+              P_tmp[X_Y] = P_tmp[X] * P_tmp[Y];
+            }
+            // accumulate probs
+            for (std::size_t i=0; i < N_PROBS; ++i) {
+              P[i] += P_tmp[i];
+            }
+            // next iteration ...
+            if (propagate_x) {
+              ++ix;
+            }
+            if (propagate_y) {
+              ++iy;
+            }
+          }
+          return P;
         }
       } // end local namespace
 
@@ -56,39 +107,54 @@ namespace Transs {
                        , std::size_t y
                        , const std::vector<float>& bandwidths
                        , const std::vector<Transs::BoxedSearch::Boxes>& searchboxes) {
-        std::size_t n;
+        std::size_t i, n;
         // use double precision for robust large-number summation
         std::vector<double> T_xy(n_rows-tau, 0.0);
         std::vector<double> T_yx(n_rows-tau, 0.0);
-        std::vector<std::array<double, N_PROBS>> P(n_rows-tau);
+        std::vector<std::vector<double>> P(N_PROBS, std::vector<double>(n_rows-tau));
+        std::array<float, N_PROBS> P_tmp;
         #pragma omp parallel for default(none)\
-                                 private(n,P)\
+                                 private(n,P_tmp,i)\
                                  firstprivate(n_rows,tau,x,y)\
-                                 shared(coords,bandwidths,searchboxes,T_xy,T_yx,sum_P)\
+                                 shared(coords,bandwidths,searchboxes,T_xy,T_yx,P)\
                                  schedule(dynamic,1)
         for (n=0; n < n_rows-tau; ++n) {
-          P[n] = joint_probabilities_unnormalized(n
-                                                , tau
-                                                , coords
-                                                , n_rows
-                                                , x
-                                                , y
-                                                , bandwidths
-                                                , searchboxes);
-          if (P[n][X_XTAU_Y] > 0.0) {
-            T_yx[n] = static_cast<double>(P[X_XTAU_Y] * log(P[X_XTAU_Y] * P[X] / P[X_Y] / P[X_XTAU]));
+          P_tmp = joint_probabilities_unnormalized(n
+                                                 , tau
+                                                 , coords
+                                                 , n_rows
+                                                 , x
+                                                 , y
+                                                 , bandwidths
+                                                 , searchboxes);
+          if (P_tmp[X_XTAU_Y] > 0.0) {
+            T_yx[n] = static_cast<double>(P_tmp[X_XTAU_Y] * log(P_tmp[X_XTAU_Y] * P_tmp[X] / P_tmp[X_Y] / P_tmp[X_XTAU]));
           }
-          if (P[n][Y_YTAU_X] > 0.0) {
-            T_xy[n] = static_cast<double>(P[Y_YTAU_X] * log(P[Y_YTAU_X] * P[Y] / P[X_Y] / P[Y_YTAU]));
+          if (P_tmp[Y_YTAU_X] > 0.0) {
+            T_xy[n] = static_cast<double>(P_tmp[Y_YTAU_X] * log(P_tmp[Y_YTAU_X] * P_tmp[Y] / P_tmp[X_Y] / P_tmp[Y_YTAU]));
+          }
+          // store probabilities for later renormalization
+          for (i=0; i < N_PROBS; ++i) {
+            P[i][n] = P_tmp[i];
           }
         }
-        //TODO renormalization of P
-        //
-        //
-        //
+        // sums of probabilities for renormalization of P (i.e. integral over P_i = 1)
+        std::array<double, N_PROBS> sum_P;
+        for (i=0; i < N_PROBS; ++i) {
+          sum_P[i] = Tools::kahan_sum(P[i]);
+        }
         std::array<float, N_T> _T;
-        _T[XY] = static_cast<float>(Tools::kahan_sum(T_xy) / n_rows / POW2(bandwidths[y]) / bandwidths[x]);
-        _T[YX] = static_cast<float>(Tools::kahan_sum(T_yx) / n_rows / POW2(bandwidths[x]) / bandwidths[y]);
+        double tmp;
+        // T_XY
+        tmp = Tools::kahan_sum(T_xy) / n_rows / POW2(bandwidths[y]) / bandwidths[x];
+        tmp += (n_rows-tau) * (log(sum_P[X_Y]) + log(sum_P[Y_YTAU]) - log(sum_P[Y_YTAU_X]) - log(sum_P[Y]));
+        tmp /= sum_P[Y_YTAU_X];
+        _T[XY] = static_cast<float>(tmp);
+        // T_YX
+        tmp = Tools::kahan_sum(T_yx) / n_rows / POW2(bandwidths[x]) / bandwidths[y];
+        tmp += (n_rows-tau) * (log(sum_P[X_Y]) + log(sum_P[X_XTAU]) - log(sum_P[X_XTAU_Y]) - log(sum_P[X]));
+        tmp /= sum_P[Y_YTAU_X];
+        _T[YX] = static_cast<float>(tmp);
         return _T;
       }
 

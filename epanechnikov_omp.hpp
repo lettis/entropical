@@ -5,6 +5,7 @@
 #include <array>
 
 #include "transs.hpp"
+#include "boxedsearch.hpp"
 
 namespace Transs {
   namespace Epanechnikov {
@@ -13,8 +14,9 @@ namespace Transs {
        * compute transfer entropies for given dimensions x,y.
        * output: [ T_xy, T_yx ]
        */
-      std::array<float, 2>
-      transfer_entropies(const float* coords
+      std::array<float, N_T>
+      transfer_entropies(std::size_t tau
+                       , const float* coords
                        , std::size_t n_rows
                        , std::size_t x
                        , std::size_t y

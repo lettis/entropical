@@ -62,7 +62,7 @@ namespace Transs {
     }
 
     std::vector<std::size_t>
-    Boxes::neighbors_of_state(std::size_t i) {
+    Boxes::neighbors_of_state_ordered(std::size_t i) const {
       return _neighbors[_box_of_state[i]];
     }
 

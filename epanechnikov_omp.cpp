@@ -6,6 +6,14 @@ namespace Transs {
   namespace Epanechnikov {
     namespace OMP {
       namespace {
+        constexpr float
+        epanechnikov_1d(const float u_squared) {
+          return (u_squared <= 1.0f ? 0.75 * (1-u_squared) : 0.0f);
+        };
+        constexpr float
+        u_squared(const float x1, const float x2, const float h_squared) {
+          return POW2(x1-x2) / h_squared;
+        };
         /**
          * compute (joint) probabilities for given dimensions x,y and specific frame n
          *
@@ -28,7 +36,7 @@ namespace Transs {
                                        , std::size_t y
                                        , const std::vector<float>& bandwidths
                                        , const std::vector<Transs::BoxedSearch::Boxes>& searchboxes) {
-          std::array<float, N_PROBS> P;
+          std::array<float, N_PROBS> P = {0,0,0,0,0,0,0};
           std::size_t ntau = n+tau;
           float x_n = coords[x*n_rows+n];
           float x_ntau = coords[x*n_rows+ntau];
@@ -36,21 +44,11 @@ namespace Transs {
           float y_ntau = coords[y*n_rows+ntau];
           float hx_squared = POW2(bandwidths[x]);
           float hy_squared = POW2(bandwidths[x]);
-          for (std::size_t i=0; i < N_PROBS; ++i) {
-            P[i] = 0.0f;
-          }
-          auto epanechnikov_1d = [](float u_squared) -> float {return (u_squared <= 1.0f ? 0.75 * (1-u_squared) : 0.0f);};
-          auto ux_squared = [&](float x1, float x2) -> float {return POW2(x1-x2) / hx_squared;};
-          auto uy_squared = [&](float y1, float y2) -> float {return POW2(y1-y2) / hy_squared;};
           std::size_t ix=0, ixtau=0, iy=0, iytau=0;
           std::vector<std::size_t> neighbors_x = searchboxes[x].neighbors_of_state_ordered(n);
           std::vector<std::size_t> neighbors_y = searchboxes[y].neighbors_of_state_ordered(n);
           std::vector<std::size_t> neighbors_xtau = searchboxes[x].neighbors_of_state_ordered(ntau);
           std::vector<std::size_t> neighbors_ytau = searchboxes[y].neighbors_of_state_ordered(ntau);
-
-          //TODO: test performance: perhaps faster if pre-computing intersection of neighbors (common_x_xtau, etc)
-          //      then: propagate x and y per default, propagate xtau, etc. if equal to x resp. y
-
           // the following loop works, because neighbors
           // are sorted in ascending order by default
           // as given by neighbors_of_state_ordered(...)
@@ -64,33 +62,36 @@ namespace Transs {
             }
             bool propagate_x = false;
             bool propagate_y = false;
-            std::array<float, N_PROBS> P_tmp = {0,0,0,0,0,0,0};
+            float P_tmp_X = 0.0f;
+            float P_tmp_X_XTAU = 0.0f;
+            float P_tmp_Y = 0.0f;
+            float P_tmp_Y_YTAU = 0.0f;
             // probabilities for x and time-lagged x
             if (neighbors_x[ix] <= neighbors_y[iy]) {
               propagate_x = true;
-              P_tmp[X] = epanechnikov_1d(ux_squared(x_n, coords[x*n_rows+neighbors_x[ix]]));
-              if (neighbors_xtau[ixtau] == neighbors_x[ix]) {
-                P_tmp[X_XTAU] = P_tmp[X] * epanechnikov_1d(ux_squared(x_ntau, coords[x*n_rows+neighbors_xtau[ixtau]]));
+              P_tmp_X = epanechnikov_1d(u_squared(x_n, coords[x*n_rows+neighbors_x[ix]], hx_squared));
+              if (P_tmp_X > 0.0f && neighbors_xtau[ixtau] == neighbors_x[ix]) {
+                P_tmp_X_XTAU = P_tmp_X * epanechnikov_1d(u_squared(x_ntau, coords[x*n_rows+neighbors_xtau[ixtau]], hx_squared));
               }
             }
             // probabilities for y and time-lagged y
             if (neighbors_y[iy] <= neighbors_x[ix]) {
               propagate_y = true;
-              P_tmp[Y] = epanechnikov_1d(uy_squared(y_n, coords[y*n_rows+neighbors_y[iy]]));
-              if (neighbors_ytau[iytau] == neighbors_y[iy]) {
-                P_tmp[Y_YTAU] = P_tmp[Y] * epanechnikov_1d(uy_squared(y_ntau, coords[y*n_rows+neighbors_ytau[iytau]]));
+              P_tmp_Y = epanechnikov_1d(u_squared(y_n, coords[y*n_rows+neighbors_y[iy]], hy_squared));
+              if (P_tmp_Y > 0.0f && neighbors_ytau[iytau] == neighbors_y[iy]) {
+                P_tmp_Y_YTAU = P_tmp_Y * epanechnikov_1d(u_squared(y_ntau, coords[y*n_rows+neighbors_ytau[iytau]], hy_squared));
               }
             }
             // joint probabilities
             if (propagate_x && propagate_y) {
-              P_tmp[X_XTAU_Y] = P_tmp[X_XTAU] * P_tmp[Y];
-              P_tmp[Y_YTAU_X] = P_tmp[Y_YTAU] * P_tmp[X];
-              P_tmp[X_Y] = P_tmp[X] * P_tmp[Y];
+              P[X_XTAU_Y] += P_tmp_X_XTAU * P_tmp_Y;
+              P[Y_YTAU_X] += P_tmp_Y_YTAU * P_tmp_X;
+              P[X_Y] += P_tmp_X * P_tmp_Y;
             }
-            // accumulate probs
-            for (std::size_t i=0; i < N_PROBS; ++i) {
-              P[i] += P_tmp[i];
-            }
+            P[X] += P_tmp_X;
+            P[Y] += P_tmp_Y;
+            P[X_XTAU] += P_tmp_X_XTAU;
+            P[Y_YTAU] += P_tmp_Y_YTAU;
             // next iteration ...
             if (propagate_x) {
               ++ix;

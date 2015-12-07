@@ -47,6 +47,10 @@ namespace Transs {
           std::vector<std::size_t> neighbors_y = searchboxes[y].neighbors_of_state_ordered(n);
           std::vector<std::size_t> neighbors_xtau = searchboxes[x].neighbors_of_state_ordered(ntau);
           std::vector<std::size_t> neighbors_ytau = searchboxes[y].neighbors_of_state_ordered(ntau);
+
+          //TODO: test performance: perhaps faster if pre-computing intersection of neighbors (common_x_xtau, etc)
+          //      then: propagate x and y per default, propagate xtau, etc. if equal to x resp. y
+
           // the following loop works, because neighbors
           // are sorted in ascending order by default
           // as given by neighbors_of_state_ordered(...)

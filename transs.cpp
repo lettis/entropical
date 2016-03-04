@@ -105,6 +105,7 @@ int main(int argc, char* argv[]) {
       }
       for (x=0; x < n_cols; ++x) {
         for (y=x+1; y < n_cols; ++y) {
+          verbose && std::cerr << "computing transfer entropies " << x << " <-> " << y << std::endl;
           std::array<float, Transs::N_T> _T = Transs::Epanechnikov::OMP::transfer_entropies(tau
                                                                                           , coords
                                                                                           , n_rows

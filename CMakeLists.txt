@@ -13,7 +13,7 @@ if (${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
   # profiling
   #set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -p")
   # debugging
-  set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")
+  #set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")
   # optimization
   set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
   set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")

@@ -39,6 +39,8 @@ function load_partitions(ndims, ngpus)
   return partitions
 end
 
+
+
 function main()
   args_settings = ArgParse.ArgParseSettings()
   ArgParse.@add_arg_table args_settings begin
@@ -55,8 +57,10 @@ function main()
       help = "lagtime (in # frames; default: 1"
     "--wgsize"
       arg_type = Int
-      default = 32
-      help = "workgroup size for OpenCL kernels; default: 32"
+      default = 64
+      help = "workgroup size for OpenCL kernels; default: 64; if changed,
+              make it a multiple of 64 for optimal performance (says at least
+              AMD)"
   end
   args = ArgParse.parse_args(args_settings)
 
@@ -99,35 +103,33 @@ function main()
     kernel_src = "
       #define WGSIZE %d
 
-      /* probabilities from Epanechnikov kernel */
-      __kernel void probs(__global const float* data
-                        , __global float* p
+      /* local probability from Epanechnikov kernel */
+      float epanechnikov( float x
                         , float ref_scaled
-                        , float h_inv_neg
-                        , uint n) {
-        uint gid = get_global_id[0];
-        float p_tmp = 0.0f;
-        if (gid < n) {
-          p_tmp = fma(h_inv_neg, data[gid], ref_scaled);
-          p_tmp *= p_tmp;
-          if (p_tmp <= 1) {
-            p_tmp = fma(p_tmp, -0.75, 0.75);
-          }
+                        , float h_inv_neg) {
+        float p = fma(h_inv_neg, x, ref_scaled);
+        p *= p;
+        if (p_tmp <= 1.0f) {
+          p = fma(p, -0.75f, 0.75f);
         }
-        p[gid] = p_tmp;
+        return p;
       }
 
-//TODO: combine both kernel into one map-reduce step
 
-      /* reduce probabilities to partial product-kernel sums
+      /* compute and reduce probabilities to partial product-kernel sums
          by stagewise-pairwise parallel summation */
-      __kernel void reduce_probs(__global const float* p_now
-                               , __global const float* p_prev
-                               , __global const float* p_tau
-                               , __global float* P1partial
-                               , __global float* P2partial
-                               , __global float* P3partial
-                               , __global float* P4partial) {
+      __kernel void partial_probs(__global const float* buf_from
+                                , __global const float* buf_to
+                                , float ref_now_scaled
+                                , float ref_prev_scaled
+                                , float ref_tau_scaled
+                                , float h_inv_neg_1
+                                , float h_inv_neg_2
+                                , uint n
+                                , __global float* P1partial
+                                , __global float* P2partial
+                                , __global float* P3partial
+                                , __global float* P4partial) {
         __local float p_now_wg[WGSIZE];
         __local float p_prev_wg[WGSIZE];
         __local float p_tau_wg[WGSIZE];
@@ -138,9 +140,19 @@ function main()
         uint lid = get_local_id(0);
         uint wid = get_group_id(0);
 
-        p_now_wg[lid] = p_now[gid];
-        p_prev_wg[lid] = p_prev[gid];
-        p_tau_wg[lid] = p_tau[gid];
+        //TODO: better performance if put inside if-clause?
+        float from = buf_from[gid];
+        float to = buf_to[gid];
+
+        if (gid < n) {
+          p_now_wg[lid] = epanechnikov(to, ref_now_scaled, h_inv_neg_2);
+          p_prev_wg[lid] = epanechnikov(to, ref_prev_scaled, h_inv_neg_2);
+          p_tau_wg[lid] = epanechnikov(from, ref_tau_scaled, h_inv_neg_1);
+        } else {
+          p_now_wg[lid] = 0.0f;
+          p_prev_wg[lid] = 0.0f;
+          p_tau_wg[lid] = 0.0f;
+        }
         barrier(CLK_LOCAL_MEM_FENCE);
 
         /* P1: p(p_now, p_prev, p_tau) */
@@ -201,9 +213,10 @@ function main()
                                    , const float* P2partial
                                    , const float* P3partial
                                    , const float* P4partial
-                                   , float* Pacc
-                                   , float* T
-                                   , uint idx_T
+                                   , float* Pacc_partial
+                                   , float* T_partial
+                                   , uint idx
+                                   , uint n
                                    , uint n_workgroups) {
         float P1 = 0.0f;
         float P2 = 0.0f;
@@ -216,11 +229,18 @@ function main()
           P3 += P3partial[i];
           P4 += P4partial[i];
         }
-        Pacc[0] += P1;
-        Pacc[1] += P2;
-        Pacc[2] += P3;
-        Pacc[3] += P4;
-        T[idx_T] += P1 * log2(P1*P2/P3/P4);
+        Pacc_partial[0  +idx] = P1;
+        Pacc_partial[  n+idx] = P2;
+        Pacc_partial[2*n+idx] = P3;
+        Pacc_partial[3*n+idx] = P4;
+        T_partial[idx] = P1 * log2(P1*P2/P3/P4);
+      }
+
+
+      __kernel void compute_T(const float* Pacc_partial
+                            , const float* T_partial
+                            , float* T) {
+        //TODO
       }
     "
 
@@ -248,14 +268,14 @@ function main()
       queue = cl.CmdQueue(ctx, :profile)
       prg = cl.Program(ctx, source=@sprintf(kernel_src, wgsize)) |> cl.build!
       # setup kernels
-      probs_krnl = cl.Kernel(prg, "probs")
-      reduce_probs_krnl = cl.Kernel(prg, "reduce_probs")
-      # setup buffers
+      partial_probs_krnl = cl.Kernel(prg, "partial_probs")
+      collect_partials_krnl = cl.Kernel(prg, "collect_partials")
+      compute_T_krnl = cl.Kernel(prg, "compute_T")
+      # setup buffers [(7*n_extended + 4*n_workgroups) * sizeof(float)]
       i_buf = cl.Buffer(Float32, ctx, :r, n_extended)
       j_buf = cl.Buffer(Float32, ctx, :r, n_extended)
-      p_tau_buf = cl.Buffer(Float32, ctx, :rw, n_extended)
-      p_prev_buf = cl.Buffer(Float32, ctx, :rw, n_extended)
-      p_buf = cl.Buffer(Float32, ctx, :rw, n_extended)
+      Pacc_partial_buf = cl.Buffer(Float32, ctx, :rw, 4*n_extended)
+      T_partial_buf = cl.Buffer(Float32, ctx, :rw, n_extended)
       p1_partial_buf = cl.Buffer(Float32, ctx, :rw, n_workgroups)
       p2_partial_buf = cl.Buffer(Float32, ctx, :rw, n_workgroups)
       p3_partial_buf = cl.Buffer(Float32, ctx, :rw, n_workgroups)
@@ -265,37 +285,21 @@ function main()
 
       function kernel_invocation(buf1, buf2, ii, jj)
         for k in tau:n
-          #TODO blocking vs. non-blocking kernel calls
-          #     (cl.call vs cl.enqueue_kernel)
-          probs_krnl[queue, (n_extended), wgsize]
-                      (buf1
-                     , p_tau_buf
-                     , data[k-tau,ii]/bandwidths[ii]
-                     , 1/bandwidths[ii]
-                     , n)
-
-          probs_krnl[queue, (n_extended), wgsize]
-                      (buf2
-                     , p_buf
-                     , data[k,jj]/bandwidths[jj]
-                     , 1/bandwidths[jj]
-                     , n)
-
-          probs_krnl[queue, (n_extended), wgsize]
-                      (buf2
-                     , p_prev_buf
-                     , data[k-1,jj]/bandwidths[jj]
-                     , 1/bandwidths[jj]
-                     , n)
-
-          reduce_probs_krnl[queue, (n_extended), wgsize]
-                      (p_buf
-                     , p_prev_buf
-                     , p_tau_buf
+          cl.set_args!(partial_probs_krnl
+                     , buf1
+                     , buf2
+                     , float32(data[k    ,jj]/bandwidths[jj])
+                     , float32(data[k-1  ,jj]/bandwidths[jj])
+                     , float32(data[k-tau,ii]/bandwidths[ii])
+                     , float32(-1/bandwidths[ii])
+                     , float32(-1/bandwidths[jj])
+                     , uint32(n)
                      , p1_partial_buf
                      , p2_partial_buf
                      , p3_partial_buf
                      , p4_partial_buf)
+          cl.enqueue_kernel(queue, partial_probs_krnl, n_extended, wgsize)
+
 
           collect_partials_krnl[queue, 1, 1]
                       (p1_partial_buf
@@ -304,19 +308,22 @@ function main()
                      , p4_partial_buf
                      , Pacc_buf
                      , T_buf
-                     , idx
+                     , n
                      , n_workgroups)
+
+
+          #TODO compute_T_krnl ...
         end
-        #TODO retrieve T from GPU
+        #TODO get T ...
       end
 
       # compute transfer entropies on this gpu
       for (idx, (i,j)) in enumerate(partitioning)
+        #TODO better copy management
         cl.write!(queue, i_buf, data[:,i])
         cl.write!(queue, j_buf, data[:,j])
         kernel_invocation(i_buf, j_buf, i, j)
         kernel_invocation(j_buf, i_buf, j, i)
-        #TODO write to T
       end
 
       return T

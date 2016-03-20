@@ -126,10 +126,7 @@ function main()
                                 , float h_inv_neg_1
                                 , float h_inv_neg_2
                                 , uint n
-                                , __global float* P1partial
-                                , __global float* P2partial
-                                , __global float* P3partial
-                                , __global float* P4partial) {
+                                , __global float4* Psingle) {
         __local float p_now_wg[WGSIZE];
         __local float p_prev_wg[WGSIZE];
         __local float p_tau_wg[WGSIZE];
@@ -139,6 +136,8 @@ function main()
         uint gid = get_global_id(0);
         uint lid = get_local_id(0);
         uint wid = get_group_id(0);
+
+        float4 Ptmp;
 
         //TODO: better performance if put inside if-clause?
         float from = buf_from[gid];
@@ -166,7 +165,7 @@ function main()
           }
         }
         if (lid == 0) {
-          P1partial[wid] = sum[0];
+          Ptmp[0] = sum[0];
         }
 
         /* P2: p(p_prev) */
@@ -178,7 +177,7 @@ function main()
           }
         }
         if (lid == 0) {
-          P2partial[wid] = sum[0];
+          Ptmp[1] = sum[0];
         }
 
         /* P3: p(p_prev, p_tau) */
@@ -191,7 +190,7 @@ function main()
           }
         }
         if (lid == 0) {
-          P3partial[wid] = sum[0];
+          Ptmp[2] = sum[0];
         }
 
         /* P4: p(p_now, p_prev) */
@@ -204,43 +203,43 @@ function main()
           }
         }
         if (lid == 0) {
-          P4partial[wid] = sum[0];
+          Ptmp[3] = sum[0];
         }
+
+        Psingle[wid] = Ptmp;
       }
 
 
-      __kernel void collect_partials(const float* P1partial
-                                   , const float* P2partial
-                                   , const float* P3partial
-                                   , const float* P4partial
-                                   , float* Pacc_partial
+      __kernel void collect_partials(const float4* Psingle
+                                   , float4* Pacc_partial
                                    , float* T_partial
                                    , uint idx
                                    , uint n
                                    , uint n_workgroups) {
-        float P1 = 0.0f;
-        float P2 = 0.0f;
-        float P3 = 0.0f;
-        float P4 = 0.0f;
         uint i;
+        float4 P_tmp;
+        P_tmp[0] = 0.0f;
+        P_tmp[1] = 0.0f;
+        P_tmp[2] = 0.0f;
+        P_tmp[3] = 0.0f;
         for (i=0; i < n_workgroups; ++i) {
-          P1 += P1partial[i];
-          P2 += P2partial[i];
-          P3 += P3partial[i];
-          P4 += P4partial[i];
+          P_tmp += Psingle[i];
         }
-        Pacc_partial[0  +idx] = P1;
-        Pacc_partial[  n+idx] = P2;
-        Pacc_partial[2*n+idx] = P3;
-        Pacc_partial[3*n+idx] = P4;
-        T_partial[idx] = P1 * log2(P1*P2/P3/P4);
+        float T_tmp = P_tmp[0] * log2(P_tmp[0]*P_tmp[1]/P_tmp[2]/P_tmp[3]);
+        Pacc_partial[idx] = P_tmp;
+        T_partial[idx] = T_tmp;
       }
 
 
       __kernel void compute_T(const float* Pacc_partial
                             , const float* T_partial
-                            , float* T) {
-        //TODO
+                            , float* T
+                            , uint n_workgroups) {
+        __local float4 Pacc[WGSIZE];
+
+        //TODO finish
+
+
       }
     "
 
@@ -267,22 +266,32 @@ function main()
       ctx = cl.Context(gpu)
       queue = cl.CmdQueue(ctx, :profile)
       prg = cl.Program(ctx, source=@sprintf(kernel_src, wgsize)) |> cl.build!
-      # setup kernels
+
+      #### setup kernels
+      # compute partially reduced probabilities
       partial_probs_krnl = cl.Kernel(prg, "partial_probs")
+      # compute fully reduced probabilities / frame
       collect_partials_krnl = cl.Kernel(prg, "collect_partials")
+      # accumulate T (i.e. produce final result)
       compute_T_krnl = cl.Kernel(prg, "compute_T")
-      # setup buffers [(7*n_extended + 4*n_workgroups) * sizeof(float)]
+
+      #### setup buffers
+      # buffers for input data
       i_buf = cl.Buffer(Float32, ctx, :r, n_extended)
       j_buf = cl.Buffer(Float32, ctx, :r, n_extended)
-      Pacc_partial_buf = cl.Buffer(Float32, ctx, :rw, 4*n_extended)
-      T_partial_buf = cl.Buffer(Float32, ctx, :rw, n_extended)
-      p1_partial_buf = cl.Buffer(Float32, ctx, :rw, n_workgroups)
-      p2_partial_buf = cl.Buffer(Float32, ctx, :rw, n_workgroups)
-      p3_partial_buf = cl.Buffer(Float32, ctx, :rw, n_workgroups)
-      p4_partial_buf = cl.Buffer(Float32, ctx, :rw, n_workgroups)
+      # buffer for temporary (partially reduced) probabilities
+      Psingle_buf = cl.Buffer(Float32, ctx, :rw, 4*n_workgroups)
+      # buffer for fully reduced probabilities (per frame)
+      Pacc_partial_buf = cl.Buffer(Float32, ctx, :rw, 4*n)
+      # buffer for total probabilities (sum over all frames)
       Pacc_buf = cl.Buffer(Float32, ctx, :rw, 4)
+      # buffer for temporary transfer entropies (per frame)
+      T_partial_buf = cl.Buffer(Float32, ctx, :rw, n)
+      # buffer for transfer entropies (final results)
       T_buf = cl.Buffer(Float32, ctx, :rw, length(partitioning))
 
+      # helper function to run kernels for transfer entropy
+      # in specified direction (ii -> jj)
       function kernel_invocation(buf1, buf2, ii, jj)
         for k in tau:n
           cl.set_args!(partial_probs_krnl
@@ -322,7 +331,9 @@ function main()
         #TODO better copy management
         cl.write!(queue, i_buf, data[:,i])
         cl.write!(queue, j_buf, data[:,j])
+        # compute T_{ij}
         kernel_invocation(i_buf, j_buf, i, j)
+        # compute T_{ji}
         kernel_invocation(j_buf, i_buf, j, i)
       end
 

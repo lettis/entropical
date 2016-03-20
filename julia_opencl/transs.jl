@@ -158,7 +158,7 @@ function main()
         sum[lid] = p_now_wg[lid] * p_prev_wg[lid] * p_tau_wg[lid];
         for (stride=WGSIZE/2; stride > 0; stride /= 2) {
           barrier(CLK_LOCAL_MEM_FENCE);
-          if (local_id < stride) {
+          if (lid < stride) {
             sum[lid] += p_now_wg[lid+stride]
                         * p_prev_wg[lid+stride]
                         * p_tau_wg[lid+stride];
@@ -172,7 +172,7 @@ function main()
         sum[lid] = p_prev_wg[lid];
         for (stride=WGSIZE/2; stride > 0; stride /= 2) {
           barrier(CLK_LOCAL_MEM_FENCE);
-          if (local_id < stride) {
+          if (lid < stride) {
             sum[lid] += p_prev_wg[lid+stride];
           }
         }
@@ -184,7 +184,7 @@ function main()
         sum[lid] = p_prev_wg[lid] * p_tau_wg[lid];
         for (stride=WGSIZE/2; stride > 0; stride /= 2) {
           barrier(CLK_LOCAL_MEM_FENCE);
-          if (local_id < stride) {
+          if (lid < stride) {
             sum[lid] += p_prev_wg[lid+stride]
                         * p_tau_wg[lid+stride];
           }
@@ -197,7 +197,7 @@ function main()
         sum[lid] = p_now_wg[lid] * p_prev_wg[lid];
         for (stride=WGSIZE/2; stride > 0; stride /= 2) {
           barrier(CLK_LOCAL_MEM_FENCE);
-          if (local_id < stride) {
+          if (lid < stride) {
             sum[lid] += p_now_wg[lid+stride]
                         * p_prev_wg[lid+stride];
           }
@@ -217,11 +217,7 @@ function main()
                                    , uint n
                                    , uint n_workgroups) {
         uint i;
-        float4 P_tmp;
-        P_tmp[0] = 0.0f;
-        P_tmp[1] = 0.0f;
-        P_tmp[2] = 0.0f;
-        P_tmp[3] = 0.0f;
+        float4 P_tmp = (float4) (0.0f);
         for (i=0; i < n_workgroups; ++i) {
           P_tmp += Psingle[i];
         }
@@ -231,15 +227,63 @@ function main()
       }
 
 
-      __kernel void compute_T(const float* Pacc_partial
-                            , const float* T_partial
+      __kernel void compute_T(float* Pacc_partial
+                            , float* T_partial
+                            , uint n
+                            , uint n_workgroups
                             , float* T
-                            , uint n_workgroups) {
+                            , uint idx) {
         __local float4 Pacc[WGSIZE];
+        __local float Tacc[WGSIZE];
+        float4 P = (float4) (0.0f);
+        float Ttmp = 0.0f;
 
-        //TODO finish
+        uint gid = get_global_id(0);
+        uint lid = get_local_id(0);
+        uint wid = get_group_id(0);
+        uint stride, i;
 
+        /* copy data to local memory */
+        if (gid < n) {
+          Pacc[lid] = Pacc_partial[gid];
+          Tacc[lid] = T_partial[gid];
+        } else {
+          Pacc[lid] = (float4)(0.0f);
+          Tacc[lid] = 0.0f;
+        }
 
+        /* parallel reduction in workgroups */
+        for (stride=WGSIZE/2; stride > 0; stride /= 2) {
+          barrier(CLK_LOCAL_MEM_FENCE);
+          if (lid < stride) {
+            Pacc[lid] += Pacc_partial[lid+stride];
+            Tacc[lid] += T_partial[lid+stride];
+          }
+        }
+        barrier(CLK_LOCAL_MEM_FENCE);
+
+        /* save workgroup result in global space */
+        if (lid == 0) {
+          Pacc_partial[gid] = Pacc[0];
+          T_partial[gid] = Tacc[0];
+        }
+        barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
+
+        /* compute T from reduced results */
+        if (gid == 0) {
+          for (i=0; i < n_workgroups; ++i) {
+            Pacc[i] = Pacc_partial[i];
+            Tacc[i] = T_partial[i];
+          }
+          for (i=0; i < n_workgroups; ++i) {
+            P += Pacc[i];
+            Ttmp += Tacc[i];
+          }
+
+          //TODO renormalize T by total probs P
+
+          T[idx] = Ttmp;
+        }
       }
     "
 
@@ -282,60 +326,72 @@ function main()
       # buffer for temporary (partially reduced) probabilities
       Psingle_buf = cl.Buffer(Float32, ctx, :rw, 4*n_workgroups)
       # buffer for fully reduced probabilities (per frame)
-      Pacc_partial_buf = cl.Buffer(Float32, ctx, :rw, 4*n)
-      # buffer for total probabilities (sum over all frames)
-      Pacc_buf = cl.Buffer(Float32, ctx, :rw, 4)
+      Pacc_partial_buf = cl.Buffer(Float32, ctx, :rw, 4*n_extended)
       # buffer for temporary transfer entropies (per frame)
-      T_partial_buf = cl.Buffer(Float32, ctx, :rw, n)
+      T_partial_buf = cl.Buffer(Float32, ctx, :rw, n_extended)
       # buffer for transfer entropies (final results)
       T_buf = cl.Buffer(Float32, ctx, :rw, length(partitioning))
 
       # helper function to run kernels for transfer entropy
       # in specified direction (ii -> jj)
-      function kernel_invocation(buf1, buf2, ii, jj)
+      function kernel_invocation(buf1, buf2, i, j, idx)
         for k in tau:n
           cl.set_args!(partial_probs_krnl
                      , buf1
                      , buf2
-                     , float32(data[k    ,jj]/bandwidths[jj])
-                     , float32(data[k-1  ,jj]/bandwidths[jj])
-                     , float32(data[k-tau,ii]/bandwidths[ii])
-                     , float32(-1/bandwidths[ii])
-                     , float32(-1/bandwidths[jj])
+                     , float32(data[k    ,j]/bandwidths[j])
+                     , float32(data[k-1  ,j]/bandwidths[j])
+                     , float32(data[k-tau,i]/bandwidths[i])
+                     , float32(-1/bandwidths[i])
+                     , float32(-1/bandwidths[j])
                      , uint32(n)
-                     , p1_partial_buf
-                     , p2_partial_buf
-                     , p3_partial_buf
-                     , p4_partial_buf)
-          cl.enqueue_kernel(queue, partial_probs_krnl, n_extended, wgsize)
+                     , Psingle_buf)
+          cl.enqueue_kernel(queue
+                          , partial_probs_krnl
+                          , n_extended
+                          , wgsize)
 
-
-          collect_partials_krnl[queue, 1, 1]
-                      (p1_partial_buf
-                     , p2_partial_buf
-                     , p3_partial_buf
-                     , p4_partial_buf
-                     , Pacc_buf
-                     , T_buf
-                     , n
-                     , n_workgroups)
-
-
-          #TODO compute_T_krnl ...
+          cl.set_args!(collect_partials_krnl
+                     , Psingle_buf
+                     , Pacc_partial_buf
+                     , uint32(k)
+                     , uint32(n)
+                     , uint32(n_workgroups))
+          cl.enqueue_task(queue
+                        , collect_partials_krnl)
         end
-        #TODO get T ...
+
+        cl.set_args!(compute_T_krnl
+                   , Pacc_partial_buf
+                   , T_partial_buf
+                   , n
+                   , n_workgroups
+                   , T_buf
+                   , idx)
+        cl.enqueue_kernel(queue
+                        , compute_T_krnl
+                        , n_extended
+                        , wgsize)
       end
 
       # compute transfer entropies on this gpu
+      last_i = 0
       for (idx, (i,j)) in enumerate(partitioning)
-        #TODO better copy management
-        cl.write!(queue, i_buf, data[:,i])
+        if i ≠ last_i
+          # {ij}-pairs are ordered by i, so we
+          # can save some copies to the GPU by
+          # checking if the i-dimension has not changed
+          cl.write!(queue, i_buf, data[:,i])
+          last_i = i
+        end
         cl.write!(queue, j_buf, data[:,j])
         # compute T_{ij}
-        kernel_invocation(i_buf, j_buf, i, j)
+        kernel_invocation(i_buf, j_buf, i, j, idx)
         # compute T_{ji}
-        kernel_invocation(j_buf, i_buf, j, i)
+        kernel_invocation(j_buf, i_buf, j, i, idx)
       end
+
+      #TODO get T(_buf) from queues
 
       return T
     end

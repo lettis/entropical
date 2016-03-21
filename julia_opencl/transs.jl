@@ -101,8 +101,6 @@ function main()
     end
 
     kernel_src = "
-      #define WGSIZE %d
-
       /* local probability from Epanechnikov kernel */
       float epanechnikov( float x
                         , float ref_scaled
@@ -125,7 +123,6 @@ function main()
                                 , float ref_tau_scaled
                                 , float h_inv_neg_1
                                 , float h_inv_neg_2
-                                , uint n
                                 , __global float4* Psingle) {
         __local float p_now_wg[WGSIZE];
         __local float p_prev_wg[WGSIZE];
@@ -280,8 +277,10 @@ function main()
             Ttmp += Tacc[i];
           }
 
-          //TODO renormalize T by total probs P
+          /* renormalize T by total probs P */
+          Ttmp = 1/P[0] * (Ttmp + log2(P[2]*P[3]/P[0]/P[1]));
 
+          /* write result to global buffer */
           T[idx] = Ttmp;
         }
       }
@@ -308,8 +307,11 @@ function main()
       end
       gpu = cl.available_devices(gpu_platform)[myid()-1]
       ctx = cl.Context(gpu)
+      #TODO: profile flag?
       queue = cl.CmdQueue(ctx, :profile)
-      prg = cl.Program(ctx, source=@sprintf(kernel_src, wgsize)) |> cl.build!
+      prg = cl.Program(ctx, source="#define WGSIZE $wgsize\n$kernel_src")
+      prg = cl.build!(prg, raise=false)
+      
 
       #### setup kernels
       # compute partially reduced probabilities
@@ -344,7 +346,6 @@ function main()
                      , float32(data[k-tau,i]/bandwidths[i])
                      , float32(-1/bandwidths[i])
                      , float32(-1/bandwidths[j])
-                     , uint32(n)
                      , Psingle_buf)
           cl.enqueue_kernel(queue
                           , partial_probs_krnl
@@ -377,7 +378,7 @@ function main()
       # compute transfer entropies on this gpu
       last_i = 0
       for (idx, (i,j)) in enumerate(partitioning)
-        if i ≠ last_i
+        if i != last_i
           # {ij}-pairs are ordered by i, so we
           # can save some copies to the GPU by
           # checking if the i-dimension has not changed
@@ -391,8 +392,8 @@ function main()
         kernel_invocation(j_buf, i_buf, j, i, idx)
       end
 
-      #TODO get T(_buf) from queues
-
+      cl.wait()
+      T = cl.read(queue, T_buf)
       return T
     end
   end # @everywhere

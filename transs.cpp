@@ -108,20 +108,14 @@ int main(int argc, char* argv[]) {
 //      }
 
       // OpenCL setup
-      std::pair<cl_uint, cl_platform_id> gpu_info = Transs::OCL::gpus();
-      std::size_t n_gpus;
-      cl_platform_id gpu_platform;
-      if (gpu_info.first == 0) {
+      std::vector<GPUElement> gpus = Transs::OCL::gpus();
+      if (gpus.size() == 0) {
         std::cerr << "error: no GPUs found for OpenCL transfer entropy computation" << std::endl;
         return EXIT_FAILURE;
-      } else {
-        n_gpus = gpu_info.first;
-        gpu_platform = gpu_info.second;
       }
       std::string kernel_src = Transs::OCL::load_kernel_source("transs.cl");
-      std::vector<GPUElement> gpus(n_gpus);
       for(GPUElement& gpu: gpus) {
-        Transs::OCL::setup_gpu(gpu, gpu_platform, kernel_src);
+        Transs::OCL::setup_gpu(gpu, gpu_platform, kernel_src, wgsize);
       }
 
       for (x=0; x < n_cols; ++x) {

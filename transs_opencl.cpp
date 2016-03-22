@@ -15,30 +15,33 @@ namespace OCL {
     fin.seekg(0, std::ios::end);
     src.reserve(fin.tellg());
     fin.seekg(0, std::ios::beg);
-    src.assign((std::istreambuf_iterator<char>(fin)),std::istreambuf_iterator<char>());
+    src.assign((std::istreambuf_iterator<char>(fin))
+             , std::istreambuf_iterator<char>());
     return src;
   }
 
-  std::pair<cl_uint, cl_platform_id>
+  std::vector<GPUElement>
   gpus() {
+    std::vector<GPUElement> gpus;
     cl_uint n_devices;
     cl_uint n_platforms;
     clGetPlatformIDs(0, NULL, &n_platforms);
     std::vector<cl_platform_id> platforms(n_platforms);
     clGetPlatformIDs(n_platforms, platforms.data(), NULL);
+    //TODO: change code
     for (cl_platform_id p: platforms) {
       clGetDeviceIDs(p, CL_DEVICE_TYPE_GPU, 0, NULL, &n_devices);
       if (n_devices > 0) {
         return {n_devices, p};
       }
     }
-    return {0, 0};
+    return gpus;
   }
 
   void
   setup_gpu(GPUElement& gpu
-          , cl_platform_id platform
-          , std::string kernel_src) {
+          , std::string kernel_src
+          , unsigned int wgsize) {
     //TODO
   }
 

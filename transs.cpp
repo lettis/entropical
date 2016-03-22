@@ -29,7 +29,6 @@ int main(int argc, char* argv[]) {
       ("pcmax", po::value<unsigned int>()->default_value(0), "max. PC to read (default: 0 == read all)")
       ("output,o", po::value<std::string>()->default_value(""), "output file (default: stdout)")
       ("wgsize", po::value<unsigned int>()->default_value(64), "workgroup size (default: 64)")
-//      ("nthreads,n", po::value<unsigned int>()->default_value(0), "number of parallel threads (default: 0 == read from OMP_NUM_THREADS)")
       ("verbose,v", po::bool_switch()->default_value(false), "verbose output.")
       ("help,h", po::bool_switch()->default_value(false), "show this help.");
     // option parsing, settings, checks
@@ -42,10 +41,6 @@ int main(int argc, char* argv[]) {
       return EXIT_SUCCESS;
     }
     bool verbose = args["verbose"].as<bool>();
-//    unsigned int nthreads = args["nthreads"].as<unsigned int>();
-//    if (nthreads > 0) {
-//      omp_set_num_threads(nthreads);
-//    }
     unsigned int wgsize = args["wgsize"].as<unsigned int>();
     // set output stream to file or STDOUT, depending on args
     Tools::IO::set_out(args["output"].as<std::string>()); 
@@ -92,7 +87,7 @@ int main(int argc, char* argv[]) {
     std::vector<std::vector<float>> T(n_cols, std::vector<float>(n_cols, 0.0));
     {
       // compute search boxes for fast neighbor search
-      std::size_t x, y, thread_id;
+      std::size_t x, y, xy, thread_id;
 
 //TODO: check if box-assisted search helps with kernel performance
 //      std::vector<Transs::BoxedSearch::Boxes> searchboxes(n_cols);
@@ -118,25 +113,29 @@ int main(int argc, char* argv[]) {
         Transs::OCL::setup_gpu(gpu, gpu_platform, kernel_src, wgsize);
       }
 
+      #pragma omp parallel for default(none)\
+                               private(x,y,thread_id)\
+                               firstprivate(n_cols,wgsize)\
+                               shared(coords,bandwidths,gpus)\
+                               num_threads(n_gpus)\
+                               collapse(2)\
+                               schedule(dynamic, 1)
       for (x=0; x < n_cols; ++x) {
-        #pragma omp parallel for default(none)\
-                                 private(y,thread_id)\
-                                 firstprivate(x,wgsize)\
-                                 shared(coords,bandwidths,gpus)\
-                                 num_threads(n_gpus)
-        for (y=x+1; y < n_cols; ++y) {
-          thread_id = omp_get_thread_num();
-          std::pair<float, float> _T = Transs::OCL::transfer_entropies(gpus[thread_id]
-                                                                     , x
-                                                                     , y
-                                                                     , coords
-                                                                     , n_rows
-                                                                     , n_cols
-                                                                     , bandwidths
-                                                                     , wgsize);
-          T[x][y] = _T.first;
-          T[y][x] = _T.second;
-          // T[x][x] == 0  by construction
+        for (y=0; y < n_cols; ++y) {
+          if (x < y) {
+            thread_id = omp_get_thread_num();
+            std::pair<float, float> _T = Transs::OCL::transfer_entropies(gpus[thread_id]
+                                                                       , x
+                                                                       , y
+                                                                       , coords
+                                                                       , n_rows
+                                                                       , n_cols
+                                                                       , bandwidths
+                                                                       , wgsize);
+            T[x][y] = _T.first;
+            T[y][x] = _T.second;
+            // T[x][x] == 0  by construction
+          }
         }
       }
     }

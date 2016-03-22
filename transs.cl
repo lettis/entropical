@@ -1,4 +1,6 @@
 
+// WGSIZE set by host program
+
 /* local probability from Epanechnikov kernel */
 float epanechnikov( float x
                   , float ref_scaled
@@ -175,7 +177,7 @@ __kernel void compute_T(float* Pacc_partial
     }
 
     /* renormalize T by total probs P */
-    Ttmp = 1/P[0] * (Ttmp + log2(P[2]*P[3]/P[0]/P[1]));
+    Ttmp = 1.0f/P[0] * (Ttmp + log2(P[2]*P[3]/P[0]/P[1]));
 
     /* write result to global buffer */
     T[idx] = Ttmp;

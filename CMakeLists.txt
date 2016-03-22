@@ -18,7 +18,6 @@ if (${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
   set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
   set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
   set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ftree-vectorize")
-  set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ffast-math")
   # warnings
   set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
   set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wextra")
@@ -29,34 +28,18 @@ else()
                       if you want to use another compiler, adapt CMakeLists.txt and try at your own risk.")
 endif()
 
+set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR})
+
 
 add_subdirectory(coords_file)
 
 find_package(Boost 1.49 COMPONENTS program_options REQUIRED)
 include_directories (${Boost_INCLUDE_DIR})
 
-#find_package(MPI REQUIRED)
-#include_directories (${MPI_CXX_INCLUDE_DIR})
+find_package(OpenCL REQUIRED)
+include_directories (${OPENCL_INCLUDE_DIRS})
 
-#add_executable(transs_mpi transs.cpp transs_mpi.cpp tools.cpp)
-#target_link_libraries(transs_mpi ${Boost_LIBRARIES} ${MPI_CXX_LIBRARIES} coords_file)
-#install(TARGETS transs_mpi RUNTIME DESTINATION .)
-
-add_executable(transs transs.cpp tools.cpp boxedsearch.cpp epanechnikov_omp.cpp)
-target_link_libraries(transs ${Boost_LIBRARIES} coords_file)
+add_executable(transs transs.cpp transs_opencl.cpp tools.cpp boxedsearch.cpp epanechnikov_omp.cpp)
+target_link_libraries(transs ${Boost_LIBRARIES} ${OPENCL_LIBRARIES} coords_file)
 install(TARGETS transs RUNTIME DESTINATION .)
-
-#if (TRANSS_OCL)
-#  find_package(OpenCL)
-#
-#  add_definitions(-DTRANSS_OCL)
-#  add_executable(transs_ocl transs.cpp transs_ocl.cpp tools.cpp)
-#  target_link_libraries(transs_ocl ${Boost_LIBRARIES} ${OpenCL_LIBRARIES} coords_file)
-#  install(TARGETS transs_ocl RUNTIME DESTINATION .)
-#else()
-#  add_executable(transs transs.cpp transs_omp.cpp tools.cpp)
-#  target_link_libraries(transs ${Boost_LIBRARIES} coords_file)
-#  install(TARGETS transs RUNTIME DESTINATION .)
-#endif()
-
 

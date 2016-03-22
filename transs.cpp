@@ -28,7 +28,8 @@ int main(int argc, char* argv[]) {
       // optional parameters
       ("pcmax", po::value<unsigned int>()->default_value(0), "max. PC to read (default: 0 == read all)")
       ("output,o", po::value<std::string>()->default_value(""), "output file (default: stdout)")
-      ("nthreads,n", po::value<unsigned int>()->default_value(0), "number of parallel threads (default: 0 == read from OMP_NUM_THREADS)")
+      ("wgsize", po::value<unsigned int>()->default_value(64), "workgroup size (default: 64)")
+//      ("nthreads,n", po::value<unsigned int>()->default_value(0), "number of parallel threads (default: 0 == read from OMP_NUM_THREADS)")
       ("verbose,v", po::bool_switch()->default_value(false), "verbose output.")
       ("help,h", po::bool_switch()->default_value(false), "show this help.");
     // option parsing, settings, checks
@@ -41,10 +42,11 @@ int main(int argc, char* argv[]) {
       return EXIT_SUCCESS;
     }
     bool verbose = args["verbose"].as<bool>();
-    unsigned int nthreads = args["nthreads"].as<unsigned int>();
-    if (nthreads > 0) {
-      omp_set_num_threads(nthreads);
-    }
+//    unsigned int nthreads = args["nthreads"].as<unsigned int>();
+//    if (nthreads > 0) {
+//      omp_set_num_threads(nthreads);
+//    }
+    unsigned int wgsize = args["wgsize"].as<unsigned int>();
     // set output stream to file or STDOUT, depending on args
     Tools::IO::set_out(args["output"].as<std::string>()); 
     std::string fname_input = args["input"].as<std::string>();
@@ -89,32 +91,57 @@ int main(int argc, char* argv[]) {
     // compute transfer entropies
     std::vector<std::vector<float>> T(n_cols, std::vector<float>(n_cols, 0.0));
     {
-      using namespace Transs::Epanechnikov::OMP;
       // compute search boxes for fast neighbor search
-      std::size_t x, y;
-      std::vector<Transs::BoxedSearch::Boxes> searchboxes(n_cols);
-      #pragma omp parallel for default(none)\
-                               private(x)\
-                               firstprivate(n_cols,n_rows)\
-                               shared(searchboxes,coords,bandwidths)
-      for (x=0; x < n_cols; ++x) {
-        searchboxes[x] = Transs::BoxedSearch::Boxes(coords, n_rows, x, bandwidths[x]);
+      std::size_t x, y, thread_id;
+
+//TODO: check if box-assisted search helps with kernel performance
+//      std::vector<Transs::BoxedSearch::Boxes> searchboxes(n_cols);
+//      #pragma omp parallel for default(none)\
+//                               private(x)\
+//                               firstprivate(n_cols,n_rows)\
+//                               shared(searchboxes,coords,bandwidths)
+//      for (x=0; x < n_cols; ++x) {
+//        searchboxes[x] = Transs::BoxedSearch::Boxes(coords, n_rows, x, bandwidths[x]);
+//      }
+//      for (x=0; verbose && (x < n_cols); ++x) {
+//        std::cerr << "no of boxes in dim. " << x << ":  " << searchboxes[x].n_boxes() << std::endl;
+//      }
+
+      // OpenCL setup
+      std::pair<cl_uint, cl_platform_id> gpu_info = Transs::OCL::gpus();
+      std::size_t n_gpus;
+      cl_platform_id gpu_platform;
+      if (gpu_info.first == 0) {
+        std::cerr << "error: no GPUs found for OpenCL transfer entropy computation" << std::endl;
+        return EXIT_FAILURE;
+      } else {
+        n_gpus = gpu_info.first;
+        gpu_platform = gpu_info.second;
       }
-      for (x=0; verbose && (x < n_cols); ++x) {
-        std::cerr << "no of boxes in dim. " << x << ":  " << searchboxes[x].n_boxes() << std::endl;
+      std::string kernel_src = Transs::OCL::load_kernel_source("transs.cl");
+      std::vector<GPUElement> gpus(n_gpus);
+      for(GPUElement& gpu: gpus) {
+        Transs::OCL::setup_gpu(gpu, gpu_platform, kernel_src);
       }
+
       for (x=0; x < n_cols; ++x) {
+        #pragma omp parallel for default(none)\
+                                 private(y,thread_id)\
+                                 firstprivate(x,wgsize)\
+                                 shared(coords,bandwidths,gpus)\
+                                 num_threads(n_gpus)
         for (y=x+1; y < n_cols; ++y) {
-          verbose && std::cerr << "computing transfer entropies " << x << " <-> " << y << std::endl;
-          std::array<float, Transs::N_T> _T = Transs::Epanechnikov::OMP::transfer_entropies(tau
-                                                                                          , coords
-                                                                                          , n_rows
-                                                                                          , x
-                                                                                          , y
-                                                                                          , bandwidths
-                                                                                          , searchboxes);
-          T[x][y] = _T[Transs::XY];
-          T[y][x] = _T[Transs::YX];
+          thread_id = omp_get_thread_num();
+          std::pair<float, float> _T = Transs::OCL::transfer_entropies(gpus[thread_id]
+                                                                     , x
+                                                                     , y
+                                                                     , coords
+                                                                     , n_rows
+                                                                     , n_cols
+                                                                     , bandwidths
+                                                                     , wgsize);
+          T[x][y] = _T.first;
+          T[y][x] = _T.second;
           // T[x][x] == 0  by construction
         }
       }

@@ -7,6 +7,8 @@
 #endif
 
 #include <utility>
+#include <vector>
+#include <string>
 
 namespace Transs {
 namespace OCL {

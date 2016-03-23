@@ -12,7 +12,7 @@
 #include "transs.hpp"
 #include "tools.hpp"
 #include "boxedsearch.hpp"
-#include "epanechnikov_omp.hpp"
+#include "transs_opencl.hpp"
 
 int main(int argc, char* argv[]) {
   namespace po = boost::program_options;
@@ -87,36 +87,39 @@ int main(int argc, char* argv[]) {
     std::vector<std::vector<float>> T(n_cols, std::vector<float>(n_cols, 0.0));
     {
       // compute search boxes for fast neighbor search
-      std::size_t x, y, xy, thread_id;
+      std::size_t x, y, thread_id;
 
-//TODO: check if box-assisted search helps with kernel performance
-//      std::vector<Transs::BoxedSearch::Boxes> searchboxes(n_cols);
-//      #pragma omp parallel for default(none)\
-//                               private(x)\
-//                               firstprivate(n_cols,n_rows)\
-//                               shared(searchboxes,coords,bandwidths)
-//      for (x=0; x < n_cols; ++x) {
-//        searchboxes[x] = Transs::BoxedSearch::Boxes(coords, n_rows, x, bandwidths[x]);
-//      }
-//      for (x=0; verbose && (x < n_cols); ++x) {
-//        std::cerr << "no of boxes in dim. " << x << ":  " << searchboxes[x].n_boxes() << std::endl;
-//      }
+/*
+TODO: check if box-assisted search helps with kernel performance
+      std::vector<Transs::BoxedSearch::Boxes> searchboxes(n_cols);
+      #pragma omp parallel for default(none)\
+                               private(x)\
+                               firstprivate(n_cols,n_rows)\
+                               shared(searchboxes,coords,bandwidths)
+      for (x=0; x < n_cols; ++x) {
+        searchboxes[x] = Transs::BoxedSearch::Boxes(coords, n_rows, x, bandwidths[x]);
+      }
+      for (x=0; verbose && (x < n_cols); ++x) {
+        std::cerr << "no of boxes in dim. " << x << ":  " << searchboxes[x].n_boxes() << std::endl;
+      }
+*/
 
       // OpenCL setup
-      std::vector<GPUElement> gpus = Transs::OCL::gpus();
-      if (gpus.size() == 0) {
+      std::vector<Transs::OCL::GPUElement> gpus = Transs::OCL::gpus();
+      std::size_t n_gpus = gpus.size();
+      if (n_gpus == 0) {
         std::cerr << "error: no GPUs found for OpenCL transfer entropy computation" << std::endl;
         return EXIT_FAILURE;
       }
       std::string kernel_src = Transs::OCL::load_kernel_source("transs.cl");
-      for(GPUElement& gpu: gpus) {
-        Transs::OCL::setup_gpu(gpu, gpu_platform, kernel_src, wgsize);
+      for(Transs::OCL::GPUElement& gpu: gpus) {
+        Transs::OCL::setup_gpu(gpu, kernel_src, wgsize);
       }
 
       #pragma omp parallel for default(none)\
                                private(x,y,thread_id)\
-                               firstprivate(n_cols,wgsize)\
-                               shared(coords,bandwidths,gpus)\
+                               firstprivate(n_rows,n_cols,wgsize)\
+                               shared(coords,bandwidths,gpus,T)\
                                num_threads(n_gpus)\
                                collapse(2)\
                                schedule(dynamic, 1)

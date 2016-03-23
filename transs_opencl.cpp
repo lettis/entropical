@@ -1,9 +1,12 @@
 
+#define UNUSED(expr) (void)(expr)
+
 #include "transs_opencl.hpp"
 
 #include <vector>
 #include <fstream>
 #include <streambuf>
+#include <iostream>
 
 namespace Transs {
 namespace OCL {
@@ -27,7 +30,7 @@ namespace OCL {
     cl_uint n_platforms;
     check_error(clGetPlatformIDs(0
                                , NULL
-                               , &n_platforms));
+                               , &n_platforms), "clGetPlatformIDs");
     std::vector<cl_platform_id> platforms(n_platforms);
     check_error(clGetPlatformIDs(n_platforms
                                , platforms.data()
@@ -64,6 +67,7 @@ namespace OCL {
                  + std::to_string(wgsize)
                  + std::string("\n")
                  + kernel_src;
+    const char* src = kernel_src.c_str();
     // create context
     cl_int err;
     gpu.ctx = clCreateContext(NULL
@@ -76,7 +80,7 @@ namespace OCL {
     // create program
     gpu.prog = clCreateProgramWithSource(gpu.ctx
                                        , 1
-                                       , &kernel_src.c_str()
+                                       , &src
                                        , NULL
                                        , &err);
     check_error(err, "clCreateProgramWithSource");
@@ -106,6 +110,9 @@ namespace OCL {
            , const void *private_info
            , size_t cb
            , void *user_data) {
+    UNUSED(private_info);
+    UNUSED(cb);
+    UNUSED(user_data);
 	  std::cerr << "OpenCL Error (via pfn_notify): " << errinfo << std::endl;
   }
 

@@ -62,6 +62,7 @@ namespace OCL {
   setup_gpu(GPUElement& gpu
           , std::string kernel_src
           , unsigned int wgsize) {
+    cl_int err;
     // prepare kernel source
     kernel_src = std::string("#define WGSIZE ")
                  + std::to_string(wgsize)
@@ -69,7 +70,6 @@ namespace OCL {
                  + kernel_src;
     const char* src = kernel_src.c_str();
     // create context
-    cl_int err;
     gpu.ctx = clCreateContext(NULL
                             , 1
                             , &gpu.i_dev

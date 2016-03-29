@@ -8,6 +8,7 @@
 
 #include <utility>
 #include <vector>
+#include <map>
 #include <string>
 
 namespace Transs {
@@ -24,8 +25,8 @@ namespace OCL {
     cl_context ctx;
     cl_command_queue queue;
     cl_program prog;
-    std::vector<cl_kernel> kernels;
-    std::vector<cl_mem> buffers;
+    std::map<std::string, cl_kernel> kernels;
+    std::map<std::string, cl_mem> buffers;
   };
 
   /**
@@ -47,7 +48,15 @@ namespace OCL {
   void
   setup_gpu(GPUElement& gpu
           , std::string kernel_src
-          , unsigned int wgsize);
+          , unsigned int wgsize
+          , unsigned int n_workgroups
+          , unsigned int n_extended);
+
+  /**
+   * Release OpenCL resources for given GPU.
+   */
+  void
+  cleanup_gpup(GPUElement& gpu);
 
   /**
    * Callback function for OpenCL errors.

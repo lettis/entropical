@@ -144,6 +144,9 @@ TODO: check if box-assisted search helps with kernel performance
     }
     // clean up
     Tools::IO::free_coords(coords);
+
+    //TODO OCL cleanup
+
     // output
     for (std::size_t y=0; y < n_cols; ++y) {
       for (std::size_t x=0; x < n_cols; ++x) {

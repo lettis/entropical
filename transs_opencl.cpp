@@ -61,7 +61,9 @@ namespace OCL {
   void
   setup_gpu(GPUElement& gpu
           , std::string kernel_src
-          , unsigned int wgsize) {
+          , unsigned int wgsize
+          , unsigned int n_workgroups
+          , unsigned int n_extended) {
     cl_int err;
     // prepare kernel source
     kernel_src = std::string("#define WGSIZE ")
@@ -100,9 +102,46 @@ namespace OCL {
                           , NULL);
       std::cerr << "CL Compilation failed:" << std::endl
                 << buffer << std::endl;
-      abort();
+      exit(EXIT_FAILURE);
     }
-    //TODO create kernels and buffers
+    // create kernel objects
+    auto create_kernel = [&](std::string kname) -> void {
+      gpu.kernels[kname] = clCreateKernel(gpu.prog
+                                        , kname.c_str()
+                                        , &err);
+      check_error(err, "clCreateKernel");
+    };
+    create_kernel("partial_probs");
+    create_kernel("collect_partials");
+    // create buffers
+    auto create_buffer = [&](std::string bname
+                           , std::size_t bsize
+                           , cl_mem_flags bflags) -> void {
+      gpu.buffers[bname] = clCreateBuffer(gpu.ctx
+                                        , bflags
+                                        , bsize
+                                        , NULL
+                                        , &err);
+      check_error(err, "clCreateBuffer");
+    };
+    create_buffer("i"
+                , sizeof(float) * n_extended
+                , CL_MEM_READ_ONLY);
+    create_buffer("j"
+                , sizeof(float) * n_extended
+                , CL_MEM_READ_ONLY);
+    create_buffer("Psingle"
+                , sizeof(float) * 4*n_workgroups
+                , CL_MEM_READ_WRITE | CL_MEM_HOST_NO_ACCESS);
+    create_buffer("Pacc_partial"
+                , sizeof(float) * 4*n_extended
+                , CL_MEM_READ_WRITE | CL_MEM_HOST_NO_ACCESS);
+    create_buffer("T_partial"
+                , sizeof(float) * n_extended
+                , CL_MEM_READ_WRITE | CL_MEM_HOST_NO_ACCESS);
+    create_buffer("T"
+                , sizeof(float) * 2
+                , CL_MEM_READ_WRITE);
   }
 
   void

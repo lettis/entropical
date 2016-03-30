@@ -60,13 +60,16 @@ int main(int argc, char* argv[]) {
     std::size_t n_rows;
     std::size_t n_cols;
     if (pc_max == 0) {
+      verbose && std::cout << "reading full dataset" << std::endl;
       // read full data set
       std::tie(coords, n_rows, n_cols) = Tools::IO::read_coords<float>(fname_input, 'C');
     } else {
       // read only until given PC
+      verbose && std::cout << "reading dataset up to PC " << pc_max << std::endl;
       std::tie(coords, n_rows, n_cols) = Tools::IO::read_coords<float>(fname_input, 'C', Tools::range<std::size_t>(0, pc_max, 1));
     }
     // compute bandwidths for every dimension
+    verbose && std::cout << "computing bandwidths" << std::endl;
     std::vector<float> bandwidths(n_cols);
     std::vector<float> col_min(n_cols,  std::numeric_limits<float>::infinity());
     std::vector<float> col_max(n_cols, -std::numeric_limits<float>::infinity());
@@ -105,20 +108,26 @@ TODO: check if box-assisted search helps with kernel performance
 */
 
       // OpenCL setup
+      unsigned int n_workgroups = (unsigned int) n_rows / wgsize;
+      if (n_rows % wgsize != 0) {
+        ++n_workgroups;
+      }
       std::vector<Transs::OCL::GPUElement> gpus = Transs::OCL::gpus();
       std::size_t n_gpus = gpus.size();
       if (n_gpus == 0) {
         std::cerr << "error: no GPUs found for OpenCL transfer entropy computation" << std::endl;
         return EXIT_FAILURE;
+      } else {
+        verbose && std::cout << "computing transfer entropies on " << n_gpus << " GPUs" << std::endl;
       }
       std::string kernel_src = Transs::OCL::load_kernel_source("transs.cl");
       for(Transs::OCL::GPUElement& gpu: gpus) {
-        Transs::OCL::setup_gpu(gpu, kernel_src, wgsize);
+        Transs::OCL::setup_gpu(gpu, kernel_src, wgsize, n_workgroups, n_rows);
       }
 
       #pragma omp parallel for default(none)\
                                private(x,y,thread_id)\
-                               firstprivate(n_rows,n_cols,wgsize)\
+                               firstprivate(tau,n_rows,n_cols,n_workgroups,wgsize)\
                                shared(coords,bandwidths,gpus,T)\
                                num_threads(n_gpus)\
                                collapse(2)\
@@ -132,8 +141,9 @@ TODO: check if box-assisted search helps with kernel performance
                                                                        , y
                                                                        , coords
                                                                        , n_rows
-                                                                       , n_cols
+                                                                       , tau
                                                                        , bandwidths
+                                                                       , n_workgroups
                                                                        , wgsize);
             T[x][y] = _T.first;
             T[y][x] = _T.second;
@@ -141,12 +151,13 @@ TODO: check if box-assisted search helps with kernel performance
           }
         }
       }
+      // OpenCL cleanup
+      for (Transs::OCL::GPUElement& gpu: gpus) {
+        Transs::OCL::cleanup_gpu(gpu);
+      }
     }
-    // clean up
+    // memory cleanup
     Tools::IO::free_coords(coords);
-
-    //TODO OCL cleanup
-
     // output
     for (std::size_t y=0; y < n_cols; ++y) {
       for (std::size_t x=0; x < n_cols; ++x) {

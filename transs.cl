@@ -13,6 +13,12 @@ float epanechnikov( float x
   return p;
 }
 
+/* initialize buffer with zeros */
+__kernel void initialize_zero(__global float* buf) {
+  uint gid = get_global_id(0);
+  buf[gid] = 0.0f;
+}
+
 /* compute and reduce probabilities to partial product-kernel sums
    by stagewise-pairwise parallel summation */
 __kernel void partial_probs(__global const float* buf_from
@@ -61,7 +67,7 @@ __kernel void partial_probs(__global const float* buf_from
     }
   }
   if (lid == 0) {
-    Ptmp[0] = sum[0];
+    Ptmp.s0 = sum[0];
   }
 
   /* P2: p(p_prev) */
@@ -73,7 +79,7 @@ __kernel void partial_probs(__global const float* buf_from
     }
   }
   if (lid == 0) {
-    Ptmp[1] = sum[0];
+    Ptmp.s1 = sum[0];
   }
 
   /* P3: p(p_prev, p_tau) */
@@ -86,7 +92,7 @@ __kernel void partial_probs(__global const float* buf_from
     }
   }
   if (lid == 0) {
-    Ptmp[2] = sum[0];
+    Ptmp.s2 = sum[0];
   }
 
   /* P4: p(p_now, p_prev) */
@@ -99,7 +105,7 @@ __kernel void partial_probs(__global const float* buf_from
     }
   }
   if (lid == 0) {
-    Ptmp[3] = sum[0];
+    Ptmp.s3 = sum[0];
   }
 
   Psingle[wid] = Ptmp;
@@ -108,7 +114,7 @@ __kernel void partial_probs(__global const float* buf_from
 
 __kernel void collect_partials(const float4* Psingle
                              , float4* Pacc_partial
-                             , float* T_partial
+                             , float* Tacc_partial
                              , uint idx
                              , uint n
                              , uint n_workgroups) {
@@ -117,14 +123,14 @@ __kernel void collect_partials(const float4* Psingle
   for (i=0; i < n_workgroups; ++i) {
     P_tmp += Psingle[i];
   }
-  float T_tmp = P_tmp[0] * log2(P_tmp[0]*P_tmp[1]/P_tmp[2]/P_tmp[3]);
+  float T_tmp = P_tmp.s0 * log2(P_tmp.s0*P_tmp.s1/P_tmp.s2/P_tmp.s3);
   Pacc_partial[idx] = P_tmp;
-  T_partial[idx] = T_tmp;
+  Tacc_partial[idx] = T_tmp;
 }
 
 
 __kernel void compute_T(float* Pacc_partial
-                      , float* T_partial
+                      , float* Tacc_partial
                       , uint n
                       , uint n_workgroups
                       , float* T
@@ -142,7 +148,7 @@ __kernel void compute_T(float* Pacc_partial
   /* copy data to local memory */
   if (gid < n) {
     Pacc[lid] = Pacc_partial[gid];
-    Tacc[lid] = T_partial[gid];
+    Tacc[lid] = Tacc_partial[gid];
   } else {
     Pacc[lid] = (float4)(0.0f);
     Tacc[lid] = 0.0f;
@@ -153,7 +159,7 @@ __kernel void compute_T(float* Pacc_partial
     barrier(CLK_LOCAL_MEM_FENCE);
     if (lid < stride) {
       Pacc[lid] += Pacc_partial[lid+stride];
-      Tacc[lid] += T_partial[lid+stride];
+      Tacc[lid] += Tacc_partial[lid+stride];
     }
   }
   barrier(CLK_LOCAL_MEM_FENCE);
@@ -161,7 +167,7 @@ __kernel void compute_T(float* Pacc_partial
   /* save workgroup result in global space */
   if (lid == 0) {
     Pacc_partial[gid] = Pacc[0];
-    T_partial[gid] = Tacc[0];
+    Tacc_partial[gid] = Tacc[0];
   }
   barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
 
@@ -169,7 +175,7 @@ __kernel void compute_T(float* Pacc_partial
   if (gid == 0) {
     for (i=0; i < n_workgroups; ++i) {
       Pacc[i] = Pacc_partial[i];
-      Tacc[i] = T_partial[i];
+      Tacc[i] = Tacc_partial[i];
     }
     for (i=0; i < n_workgroups; ++i) {
       P += Pacc[i];

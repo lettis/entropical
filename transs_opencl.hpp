@@ -23,7 +23,7 @@ namespace OCL {
     cl_device_id i_dev;
     cl_platform_id i_platform;
     cl_context ctx;
-    cl_command_queue queue;
+    cl_command_queue q;
     cl_program prog;
     std::map<std::string, cl_kernel> kernels;
     std::map<std::string, cl_mem> buffers;
@@ -50,13 +50,13 @@ namespace OCL {
           , std::string kernel_src
           , unsigned int wgsize
           , unsigned int n_workgroups
-          , unsigned int n_extended);
+          , unsigned int n_rows);
 
   /**
    * Release OpenCL resources for given GPU.
    */
   void
-  cleanup_gpup(GPUElement& gpu);
+  cleanup_gpu(GPUElement& gpu);
 
   /**
    * Callback function for OpenCL errors.
@@ -84,10 +84,11 @@ namespace OCL {
                    , std::size_t x
                    , std::size_t y
                    , const float* coords
-                   , std::size_t n_rows
-                   , std::size_t n_cols
+                   , unsigned int n_rows
+                   , unsigned int tau
                    , const std::vector<float> bandwidths
-                   , unsigned int wgsize);
+                   , unsigned int wgsize
+                   , unsigned int n_workgroups);
 
 } // end namespace Transs::OCL
 } // end namespace Transs

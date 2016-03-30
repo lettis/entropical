@@ -286,6 +286,7 @@ namespace OCL {
       set_float("partial_probs", 5, &h_inv_neg_i);
       set_float("partial_probs", 6, &h_inv_neg_j);
       set_buf("partial_probs", 7, "Psingle");
+      set_uint("partial_probs", 8, &n_rows);
       set_buf("collect_partials", 0, "Psingle");
       set_buf("collect_partials", 1, "Pacc_partial");
       set_buf("collect_partials", 2, "Tacc_partial");

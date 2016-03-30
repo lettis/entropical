@@ -7,7 +7,7 @@ float epanechnikov( float x
                   , float h_inv_neg) {
   float p = fma(h_inv_neg, x, ref_scaled);
   p *= p;
-  if (p_tmp <= 1.0f) {
+  if (p <= 1.0f) {
     p = fma(p, -0.75f, 0.75f);
   }
   return p;
@@ -28,7 +28,8 @@ __kernel void partial_probs(__global const float* buf_from
                           , float ref_tau_scaled
                           , float h_inv_neg_1
                           , float h_inv_neg_2
-                          , __global float4* Psingle) {
+                          , __global float4* Psingle
+                          , unsigned int n) {
   __local float p_now_wg[WGSIZE];
   __local float p_prev_wg[WGSIZE];
   __local float p_tau_wg[WGSIZE];
@@ -112,9 +113,9 @@ __kernel void partial_probs(__global const float* buf_from
 }
 
 
-__kernel void collect_partials(const float4* Psingle
-                             , float4* Pacc_partial
-                             , float* Tacc_partial
+__kernel void collect_partials(__global const float4* Psingle
+                             , __global float4* Pacc_partial
+                             , __global float* Tacc_partial
                              , uint idx
                              , uint n
                              , uint n_workgroups) {
@@ -129,11 +130,11 @@ __kernel void collect_partials(const float4* Psingle
 }
 
 
-__kernel void compute_T(float* Pacc_partial
-                      , float* Tacc_partial
+__kernel void compute_T(__global float4* Pacc_partial
+                      , __global float* Tacc_partial
                       , uint n
                       , uint n_workgroups
-                      , float* T
+                      , __global float* T
                       , uint idx) {
   __local float4 Pacc[WGSIZE];
   __local float Tacc[WGSIZE];
@@ -183,7 +184,7 @@ __kernel void compute_T(float* Pacc_partial
     }
 
     /* renormalize T by total probs P */
-    Ttmp = 1.0f/P[0] * (Ttmp + log2(P[2]*P[3]/P[0]/P[1]));
+    Ttmp = 1.0f/P.s0 * (Ttmp + log2(P.s2*P.s3/P.s0/P.s1));
 
     /* write result to global buffer */
     T[idx] = Ttmp;

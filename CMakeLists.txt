@@ -39,7 +39,13 @@ include_directories (${Boost_INCLUDE_DIR})
 find_package(OpenCL REQUIRED)
 include_directories (${OPENCL_INCLUDE_DIRS})
 
-add_executable(transs transs.cpp transs_opencl.cpp tools.cpp boxedsearch.cpp epanechnikov_omp.cpp)
+add_executable(transs transs.cpp
+                      transs_opencl.cpp
+                      tools.cpp
+                      tools_opencl.cpp
+                      boxedsearch.cpp
+                      epanechnikov_omp.cpp)
+
 target_link_libraries(transs ${Boost_LIBRARIES} ${OPENCL_LIBRARIES} coords_file)
 install(TARGETS transs RUNTIME DESTINATION .)
 

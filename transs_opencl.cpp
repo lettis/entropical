@@ -2,6 +2,7 @@
 #define UNUSED(expr) (void)(expr)
 
 #include "transs_opencl.hpp"
+#include "tools_opencl.hpp"
 
 #include <vector>
 #include <fstream>
@@ -181,7 +182,10 @@ namespace OCL {
   void
   check_error(cl_int err_code, const char* err_name) {
     if (err_code != CL_SUCCESS) {
-      std::cerr << "error:  " << err_name << ": " << err_code << std::endl;
+      std::cerr << "error:  "
+                << err_name
+                << ": "
+                << Tools::OCL::err_to_string(err_code) << std::endl;
       exit(EXIT_FAILURE);
     }
   }

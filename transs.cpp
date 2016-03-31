@@ -108,10 +108,11 @@ TODO: check if box-assisted search helps with kernel performance
 */
 
       // OpenCL setup
-      unsigned int n_workgroups = (unsigned int) n_rows / wgsize;
-      if (n_rows % wgsize != 0) {
-        ++n_workgroups;
-      }
+      unsigned int n_workgroups = (unsigned int) std::ceil(n_rows / ((float) wgsize));
+      verbose && std::cout << "(n_workgroups, n, n_extended): "
+                           << "(" << n_workgroups
+                           << ", " << n_rows
+                           << ", " << n_workgroups*wgsize << ")" << std::endl;
       std::vector<Transs::OCL::GPUElement> gpus = Transs::OCL::gpus();
       std::size_t n_gpus = gpus.size();
       if (n_gpus == 0) {
@@ -143,8 +144,8 @@ TODO: check if box-assisted search helps with kernel performance
                                                                        , n_rows
                                                                        , tau
                                                                        , bandwidths
-                                                                       , n_workgroups
-                                                                       , wgsize);
+                                                                       , wgsize
+                                                                       , n_workgroups);
             T[x][y] = _T.first;
             T[y][x] = _T.second;
             // T[x][x] == 0  by construction

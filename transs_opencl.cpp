@@ -80,7 +80,14 @@ namespace OCL {
                             , &pfn_notify
                             , NULL
                             , &err);
-    check_error(err, "clCreateContex");
+    check_error(err, "clCreateContext");
+    // command queue
+//TODO: profiling
+    gpu.q = clCreateCommandQueue(gpu.ctx
+                               , gpu.i_dev
+                               , 0  //, CL_QUEUE_PROFILING_ENABLE
+                               , &err);
+    check_error(err, "clCreateCommandQueue");
     // create program
     gpu.prog = clCreateProgramWithSource(gpu.ctx
                                        , 1
@@ -131,11 +138,11 @@ namespace OCL {
     // input coordinates
     create_buffer("i"
                 , sizeof(float) * n_extended
-                , CL_MEM_READ_ONLY);
+                , CL_MEM_READ_WRITE);
     // input coordinates
     create_buffer("j"
                 , sizeof(float) * n_extended
-                , CL_MEM_READ_ONLY);
+                , CL_MEM_READ_WRITE);
     // probabilities pre-reduced on workgroup level (single frame)
     create_buffer("Psingle"
                 , sizeof(float) * 4*n_workgroups
@@ -176,7 +183,9 @@ namespace OCL {
     UNUSED(private_info);
     UNUSED(cb);
     UNUSED(user_data);
-	  std::cerr << "OpenCL Error (via pfn_notify): " << errinfo << std::endl;
+	  std::cerr << "OpenCL Error (via pfn_notify): "
+              << errinfo
+              << std::endl;
   }
 
   void
@@ -201,8 +210,8 @@ namespace OCL {
                    , unsigned int wgsize
                    , unsigned int n_workgroups) {
     unsigned int n_extended = n_workgroups * wgsize;
-    std::size_t global_size = (std::size_t) n_extended;
-    std::size_t local_size = (std::size_t) wgsize;
+    std::size_t global_size[1]= {n_extended};
+    std::size_t local_size[1] = {wgsize};
     // helpers for kernel arg settings & kernel invocation
     auto set_uint = [&] (std::string kname
                        , cl_int i
@@ -227,8 +236,8 @@ namespace OCL {
                       , std::string bname) -> void {
       check_error(clSetKernelArg(gpu.kernels[kname]
                                , i
-                               , sizeof(gpu.buffers[bname])
-                               , &gpu.buffers[bname])
+                               , sizeof(cl_mem)
+                               , (void*) &gpu.buffers[bname])
                 , "clSetKernelArg: set_buf");
     };
     auto nq_ndrange_kernel = [&] (std::string kname) -> void {
@@ -236,8 +245,8 @@ namespace OCL {
                                        , gpu.kernels[kname]
                                        , 1
                                        , NULL
-                                       , &global_size
-                                       , &local_size
+                                       , global_size
+                                       , local_size
                                        , 0
                                        , NULL
                                        , NULL)
@@ -254,9 +263,9 @@ namespace OCL {
     auto nq_write = [&] (std::string bname, const float* ptr) -> void {
       check_error(clEnqueueWriteBuffer(gpu.q
                                      , gpu.buffers[bname]
-                                     , CL_FALSE
+                                     , CL_TRUE
                                      , 0
-                                     , sizeof(float) * n_extended
+                                     , sizeof(float) * n_rows
                                      , ptr
                                      , 0
                                      , NULL
@@ -266,11 +275,11 @@ namespace OCL {
     // copy coords to buffers
     set_buf("initialize_zero", 0, "i");
     nq_ndrange_kernel("initialize_zero");
-    nq_write("i", &coords[i*n_rows]);
     set_buf("initialize_zero", 0, "j");
     nq_ndrange_kernel("initialize_zero");
+    nq_write("i", &coords[i*n_rows]);
     nq_write("j", &coords[j*n_rows]);
-    check_error(clFinish(gpu.q), "clFinish");
+    check_error(clFlush(gpu.q), "clFlush");
 
     // compute transfer entropy twice:
     //   i -> j (first run) and j -> i (second run)
@@ -307,6 +316,7 @@ namespace OCL {
         unsigned int idx_partial = k - tau;
         set_uint("collect_partials", 3, &idx_partial);
         nq_task_kernel("collect_partials");
+        check_error(clFlush(gpu.q), "clFlush");
       }
       unsigned int n_partials = n_rows - tau;
       set_buf("compute_T", 0, "Pacc_partial");
@@ -315,7 +325,8 @@ namespace OCL {
       set_uint("compute_T", 3, &n_workgroups);
       set_buf("compute_T", 4, "T");
       set_uint("compute_T", 5, &idx);
-      nq_task_kernel("compute_T");
+      nq_ndrange_kernel("compute_T");
+      check_error(clFlush(gpu.q), "clFlush");
     }
     // collect results
     check_error(clFinish(gpu.q), "clFinish");
@@ -330,6 +341,7 @@ namespace OCL {
                                   , NULL
                                   , NULL)
               , "clEnqueueReadBuffer");
+    check_error(clFlush(gpu.q), "clFlush");
     check_error(clFinish(gpu.q), "clFinish");
     return {T[0], T[1]};
   }

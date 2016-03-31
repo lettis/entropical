@@ -30,12 +30,13 @@ endif()
 
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR})
 
-
 add_subdirectory(coords_file)
 
 find_package(Boost 1.49 COMPONENTS program_options REQUIRED)
 include_directories (${Boost_INCLUDE_DIR})
 
+#set (OpenCL_INCPATH "/usr/local/cuda/include")
+#set (OpenCL_LIBPATH "/usr/local/cuda/lib64")
 find_package(OpenCL REQUIRED)
 include_directories (${OPENCL_INCLUDE_DIRS})
 

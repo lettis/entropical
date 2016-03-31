@@ -4,7 +4,7 @@
 #
 # To set manually the paths, define these environment variables:
 # OpenCL_INCPATH    - Include path (e.g. OpenCL_INCPATH=/opt/cuda/4.0/cuda/include)
-# OpenCL_LIBPATH    - Library path (e.h. OpenCL_LIBPATH=/usr/lib64/nvidia)
+# OpenCL_LIBPATH    - Library path (e.g. OpenCL_LIBPATH=/usr/lib64/nvidia)
 #
 # Once done this will define
 #  OPENCL_FOUND        - system has OpenCL

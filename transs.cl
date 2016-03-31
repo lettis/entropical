@@ -15,8 +15,7 @@ float epanechnikov( float x
 
 /* initialize buffer with zeros */
 __kernel void initialize_zero(__global float* buf) {
-  uint gid = get_global_id(0);
-  buf[gid] = 0.0f;
+  buf[get_global_id(0)] = 0.0f;
 }
 
 /* compute and reduce probabilities to partial product-kernel sums
@@ -42,11 +41,9 @@ __kernel void partial_probs(__global const float* buf_from
 
   float4 Ptmp;
 
-  //TODO: better performance if put inside if-clause?
-  float from = buf_from[gid];
-  float to = buf_to[gid];
-
   if (gid < n) {
+    float from = buf_from[gid];
+    float to = buf_to[gid];
     p_now_wg[lid] = epanechnikov(to, ref_now_scaled, h_inv_neg_2);
     p_prev_wg[lid] = epanechnikov(to, ref_prev_scaled, h_inv_neg_2);
     p_tau_wg[lid] = epanechnikov(from, ref_tau_scaled, h_inv_neg_1);
@@ -57,7 +54,7 @@ __kernel void partial_probs(__global const float* buf_from
   }
   barrier(CLK_LOCAL_MEM_FENCE);
 
-  /* P1: p(p_now, p_prev, p_tau) */
+  // P1: p(p_now, p_prev, p_tau)
   sum[lid] = p_now_wg[lid] * p_prev_wg[lid] * p_tau_wg[lid];
   for (stride=WGSIZE/2; stride > 0; stride /= 2) {
     barrier(CLK_LOCAL_MEM_FENCE);
@@ -71,7 +68,7 @@ __kernel void partial_probs(__global const float* buf_from
     Ptmp.s0 = sum[0];
   }
 
-  /* P2: p(p_prev) */
+  // P2: p(p_prev)
   sum[lid] = p_prev_wg[lid];
   for (stride=WGSIZE/2; stride > 0; stride /= 2) {
     barrier(CLK_LOCAL_MEM_FENCE);
@@ -83,7 +80,7 @@ __kernel void partial_probs(__global const float* buf_from
     Ptmp.s1 = sum[0];
   }
 
-  /* P3: p(p_prev, p_tau) */
+  // P3: p(p_prev, p_tau)
   sum[lid] = p_prev_wg[lid] * p_tau_wg[lid];
   for (stride=WGSIZE/2; stride > 0; stride /= 2) {
     barrier(CLK_LOCAL_MEM_FENCE);
@@ -96,7 +93,7 @@ __kernel void partial_probs(__global const float* buf_from
     Ptmp.s2 = sum[0];
   }
 
-  /* P4: p(p_now, p_prev) */
+  // P4: p(p_now, p_prev)
   sum[lid] = p_now_wg[lid] * p_prev_wg[lid];
   for (stride=WGSIZE/2; stride > 0; stride /= 2) {
     barrier(CLK_LOCAL_MEM_FENCE);
@@ -109,7 +106,10 @@ __kernel void partial_probs(__global const float* buf_from
     Ptmp.s3 = sum[0];
   }
 
-  Psingle[wid] = Ptmp;
+  // store reduced probs for workgroup
+  if (lid == 0) {
+    Psingle[wid] = Ptmp;
+  }
 }
 
 
@@ -119,12 +119,19 @@ __kernel void collect_partials(__global const float4* Psingle
                              , uint idx
                              , uint n
                              , uint n_workgroups) {
+
   uint i;
   float4 P_tmp = (float4) (0.0f);
   for (i=0; i < n_workgroups; ++i) {
     P_tmp += Psingle[i];
   }
-  float T_tmp = P_tmp.s0 * log2(P_tmp.s0*P_tmp.s1/P_tmp.s2/P_tmp.s3);
+  float T_tmp = 0.0f;
+  if (P_tmp.s0 > 0.0f
+   && P_tmp.s1 > 0.0f
+   && P_tmp.s2 > 0.0f
+   && P_tmp.s3 > 0.0f) {
+    T_tmp = P_tmp.s0 * log2(P_tmp.s0*P_tmp.s1/P_tmp.s2/P_tmp.s3);
+  }
   Pacc_partial[idx] = P_tmp;
   Tacc_partial[idx] = T_tmp;
 }
@@ -146,7 +153,7 @@ __kernel void compute_T(__global float4* Pacc_partial
   uint wid = get_group_id(0);
   uint stride, i;
 
-  /* copy data to local memory */
+  // copy data to local memory
   if (gid < n) {
     Pacc[lid] = Pacc_partial[gid];
     Tacc[lid] = Tacc_partial[gid];
@@ -155,7 +162,7 @@ __kernel void compute_T(__global float4* Pacc_partial
     Tacc[lid] = 0.0f;
   }
 
-  /* parallel reduction in workgroups */
+  // parallel reduction in workgroups
   for (stride=WGSIZE/2; stride > 0; stride /= 2) {
     barrier(CLK_LOCAL_MEM_FENCE);
     if (lid < stride) {
@@ -165,28 +172,29 @@ __kernel void compute_T(__global float4* Pacc_partial
   }
   barrier(CLK_LOCAL_MEM_FENCE);
 
-  /* save workgroup result in global space */
+  // save workgroup result in global space
   if (lid == 0) {
     Pacc_partial[gid] = Pacc[0];
     Tacc_partial[gid] = Tacc[0];
   }
   barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
 
-  /* compute T from reduced results */
+  // compute T from reduced results
   if (gid == 0) {
     for (i=0; i < n_workgroups; ++i) {
-      Pacc[i] = Pacc_partial[i];
-      Tacc[i] = Tacc_partial[i];
-    }
-    for (i=0; i < n_workgroups; ++i) {
-      P += Pacc[i];
-      Ttmp += Tacc[i];
+      P += Pacc_partial[i];
+      Ttmp += Tacc_partial[i];
     }
 
-    /* renormalize T by total probs P */
-    Ttmp = 1.0f/P.s0 * (Ttmp + log2(P.s2*P.s3/P.s0/P.s1));
+    // renormalize T by total probs P
+    if (P.s0 > 0.0f
+     && P.s1 > 0.0f
+     && P.s2 > 0.0f
+     && P.s3 > 0.0f) {
+      Ttmp = 1.0f/P.s0 * (Ttmp + log2(P.s2*P.s3/P.s0/P.s1));
+    }
 
-    /* write result to global buffer */
+    // write result to global buffer
     T[idx] = Ttmp;
   }
 }

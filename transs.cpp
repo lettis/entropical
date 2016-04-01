@@ -11,7 +11,6 @@
 
 #include "transs.hpp"
 #include "tools.hpp"
-#include "boxedsearch.hpp"
 #include "transs_opencl.hpp"
 
 int main(int argc, char* argv[]) {
@@ -89,24 +88,7 @@ int main(int argc, char* argv[]) {
     // compute transfer entropies
     std::vector<std::vector<float>> T(n_cols, std::vector<float>(n_cols, 0.0));
     {
-      // compute search boxes for fast neighbor search
       std::size_t x, y, thread_id;
-
-/*
-TODO: check if box-assisted search helps with kernel performance
-      std::vector<Transs::BoxedSearch::Boxes> searchboxes(n_cols);
-      #pragma omp parallel for default(none)\
-                               private(x)\
-                               firstprivate(n_cols,n_rows)\
-                               shared(searchboxes,coords,bandwidths)
-      for (x=0; x < n_cols; ++x) {
-        searchboxes[x] = Transs::BoxedSearch::Boxes(coords, n_rows, x, bandwidths[x]);
-      }
-      for (x=0; verbose && (x < n_cols); ++x) {
-        std::cerr << "no of boxes in dim. " << x << ":  " << searchboxes[x].n_boxes() << std::endl;
-      }
-*/
-
       // OpenCL setup
       unsigned int n_workgroups = (unsigned int) std::ceil(n_rows / ((float) wgsize));
       verbose && std::cout << "(n_workgroups, n, n_extended): "
@@ -125,7 +107,6 @@ TODO: check if box-assisted search helps with kernel performance
       for(Transs::OCL::GPUElement& gpu: gpus) {
         Transs::OCL::setup_gpu(gpu, kernel_src, wgsize, n_workgroups, n_rows);
       }
-
       #pragma omp parallel for default(none)\
                                private(x,y,thread_id)\
                                firstprivate(tau,n_rows,n_cols,n_workgroups,wgsize)\

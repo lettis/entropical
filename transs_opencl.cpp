@@ -8,6 +8,7 @@
 #include <fstream>
 #include <streambuf>
 #include <iostream>
+#include <cmath>
 
 namespace Transs {
 namespace OCL {
@@ -82,10 +83,9 @@ namespace OCL {
                             , &err);
     check_error(err, "clCreateContext");
     // command queue
-//TODO: profiling
     gpu.q = clCreateCommandQueue(gpu.ctx
                                , gpu.i_dev
-                               , 0  //, CL_QUEUE_PROFILING_ENABLE
+                               , 0
                                , &err);
     check_error(err, "clCreateCommandQueue");
     // create program
@@ -212,6 +212,8 @@ namespace OCL {
     unsigned int n_extended = n_workgroups * wgsize;
     std::size_t global_size[1]= {n_extended};
     std::size_t local_size[1] = {wgsize};
+    std::size_t collector_size[1] = {
+      wgsize * (std::size_t) std::ceil(n_workgroups / ((float) wgsize))};
     // helpers for kernel arg settings & kernel invocation
     auto set_uint = [&] (std::string kname
                        , cl_int i
@@ -252,14 +254,26 @@ namespace OCL {
                                        , NULL)
                 , "clEnqueueNDRangeKernel");
     };
-    auto nq_task_kernel = [&] (std::string kname) -> void {
-      check_error(clEnqueueTask(gpu.q
-                              , gpu.kernels[kname]
-                              , 0
-                              , NULL
-                              , NULL)
-                , "clEnqueueTask");
+    auto nq_collector_kernel = [&] (std::string kname) -> void {
+      check_error(clEnqueueNDRangeKernel(gpu.q
+                                       , gpu.kernels[kname]
+                                       , 1
+                                       , NULL
+                                       , collector_size
+                                       , local_size
+                                       , 0
+                                       , NULL
+                                       , NULL)
+                , "clEnqueueNDRangeKernel");
     };
+//    auto nq_task_kernel = [&] (std::string kname) -> void {
+//      check_error(clEnqueueTask(gpu.q
+//                              , gpu.kernels[kname]
+//                              , 0
+//                              , NULL
+//                              , NULL)
+//                , "clEnqueueTask");
+//    };
     auto nq_write = [&] (std::string bname, const float* ptr) -> void {
       check_error(clEnqueueWriteBuffer(gpu.q
                                      , gpu.buffers[bname]
@@ -305,6 +319,11 @@ namespace OCL {
       set_buf("collect_partials", 2, "Tacc_partial");
       set_uint("collect_partials", 4, &n_rows);
       set_uint("collect_partials", 5, &n_workgroups);
+      check_error(clSetKernelArg(gpu.kernels["collect_partials"]
+                               , 6
+                               , 4 * sizeof(float) * collector_size[0]
+                               , NULL)
+                , "clSetKernelArg: collect_partials local buf");
       for (unsigned int k=tau; k < n_rows; ++k) {
         float ref_now_scaled = coords[j*n_rows+k] / bandwidths[j];
         float ref_prev_scaled = coords[j*n_rows+(k-1)] / bandwidths[j];
@@ -315,7 +334,8 @@ namespace OCL {
         nq_ndrange_kernel("partial_probs");
         unsigned int idx_partial = k - tau;
         set_uint("collect_partials", 3, &idx_partial);
-        nq_task_kernel("collect_partials");
+        //nq_task_kernel("collect_partials");
+        nq_collector_kernel("collect_partials");
         check_error(clFlush(gpu.q), "clFlush");
       }
       unsigned int n_partials = n_rows - tau;

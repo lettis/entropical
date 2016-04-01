@@ -32,7 +32,10 @@ __kernel void partial_probs(__global const float* buf_from
   __local float p_now_wg[WGSIZE];
   __local float p_prev_wg[WGSIZE];
   __local float p_tau_wg[WGSIZE];
-  __local float sum[WGSIZE];
+  __local float sum1[WGSIZE];
+  __local float sum2[WGSIZE];
+  __local float sum3[WGSIZE];
+  __local float sum4[WGSIZE];
 
   uint stride;
   uint gid = get_global_id(0);
@@ -54,88 +57,114 @@ __kernel void partial_probs(__global const float* buf_from
   }
   barrier(CLK_LOCAL_MEM_FENCE);
 
-  // P1: p(p_now, p_prev, p_tau)
-  sum[lid] = p_now_wg[lid] * p_prev_wg[lid] * p_tau_wg[lid];
+  sum1[lid] = p_now_wg[lid] * p_prev_wg[lid] * p_tau_wg[lid];
+  sum2[lid] = p_prev_wg[lid];
+  sum3[lid] = p_prev_wg[lid] * p_tau_wg[lid];
+  sum4[lid] = p_now_wg[lid] * p_prev_wg[lid];
   for (stride=WGSIZE/2; stride > 0; stride /= 2) {
     barrier(CLK_LOCAL_MEM_FENCE);
     if (lid < stride) {
-      sum[lid] += p_now_wg[lid+stride]
-                  * p_prev_wg[lid+stride]
-                  * p_tau_wg[lid+stride];
+      float p_now_tmp = p_now_wg[lid+stride];
+      float p_prev_tmp = p_prev_wg[lid+stride];
+      float p_tau_tmp = p_tau_wg[lid+stride];
+      // P2: p(p_prev)
+      sum2[lid] += p_prev_tmp;
+      // P3: p(p_prev, p_tau)
+      sum3[lid] += p_prev_tmp
+                   * p_tau_tmp;
+      // P1: p(p_now, p_prev, p_tau)
+      sum1[lid] += p_now_tmp
+                   * p_prev_tmp
+                   * p_tau_tmp;
+      // P4: p(p_now, p_prev)
+      sum4[lid] += p_now_tmp
+                   * p_prev_tmp;
     }
   }
   if (lid == 0) {
-    Ptmp.s0 = sum[0];
-  }
-
-  // P2: p(p_prev)
-  sum[lid] = p_prev_wg[lid];
-  for (stride=WGSIZE/2; stride > 0; stride /= 2) {
-    barrier(CLK_LOCAL_MEM_FENCE);
-    if (lid < stride) {
-      sum[lid] += p_prev_wg[lid+stride];
-    }
-  }
-  if (lid == 0) {
-    Ptmp.s1 = sum[0];
-  }
-
-  // P3: p(p_prev, p_tau)
-  sum[lid] = p_prev_wg[lid] * p_tau_wg[lid];
-  for (stride=WGSIZE/2; stride > 0; stride /= 2) {
-    barrier(CLK_LOCAL_MEM_FENCE);
-    if (lid < stride) {
-      sum[lid] += p_prev_wg[lid+stride]
-                  * p_tau_wg[lid+stride];
-    }
-  }
-  if (lid == 0) {
-    Ptmp.s2 = sum[0];
-  }
-
-  // P4: p(p_now, p_prev)
-  sum[lid] = p_now_wg[lid] * p_prev_wg[lid];
-  for (stride=WGSIZE/2; stride > 0; stride /= 2) {
-    barrier(CLK_LOCAL_MEM_FENCE);
-    if (lid < stride) {
-      sum[lid] += p_now_wg[lid+stride]
-                  * p_prev_wg[lid+stride];
-    }
-  }
-  if (lid == 0) {
-    Ptmp.s3 = sum[0];
-  }
-
-  // store reduced probs for workgroup
-  if (lid == 0) {
+    Ptmp.s0 = sum1[0];
+    Ptmp.s1 = sum2[0];
+    Ptmp.s2 = sum3[0];
+    Ptmp.s3 = sum4[0];
     Psingle[wid] = Ptmp;
   }
 }
 
 
-__kernel void collect_partials(__global const float4* Psingle
+//__kernel void collect_partials(__global const float4* Psingle
+//                             , __global float4* Pacc_partial
+//                             , __global float* Tacc_partial
+//                             , uint idx
+//                             , uint n
+//                             , uint n_workgroups) {
+//  uint i;
+//  float4 P_tmp = (float4) (0.0f);
+//  for (i=0; i < n_workgroups; ++i) {
+//    P_tmp += Psingle[i];
+//  }
+//  float T_tmp = 0.0f;
+//  if (P_tmp.s0 > 0.0f
+//   && P_tmp.s1 > 0.0f
+//   && P_tmp.s2 > 0.0f
+//   && P_tmp.s3 > 0.0f) {
+//    T_tmp = P_tmp.s0 * log2(P_tmp.s0*P_tmp.s1/P_tmp.s2/P_tmp.s3);
+//  }
+//  Pacc_partial[idx] = P_tmp;
+//  Tacc_partial[idx] = T_tmp;
+//}
+
+__kernel void collect_partials(__global float4* Psingle
                              , __global float4* Pacc_partial
                              , __global float* Tacc_partial
                              , uint idx
                              , uint n
-                             , uint n_workgroups) {
+                             , uint n_workgroups
+                             , __local float4* P_tmp) {
+  uint stride;
+  uint gid = get_global_id(0);
+  uint lid = get_local_id(0);
+  uint wid = get_group_id(0);
+  // init local memory
+  if (gid < n_workgroups) {
+    P_tmp[lid] = Psingle[gid];
+  } else {
+    P_tmp[lid] = (float4) (0.0f);
+  }
+  // parallel reduction inside workgroups
+  for (stride=WGSIZE/2; stride > 0; stride /= 2) {
+    barrier(CLK_LOCAL_MEM_FENCE);
+    if (lid < stride) {
+      P_tmp[lid] += P_tmp[lid+stride];
+    }
+  }
+  barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
 
-  uint i;
-  float4 P_tmp = (float4) (0.0f);
-  for (i=0; i < n_workgroups; ++i) {
-    P_tmp += Psingle[i];
+  // save workgroup result in global memory
+  // reusing Psingle as buffer
+  if (lid == 0) {
+    Psingle[wid] = P_tmp[0];
   }
-  float T_tmp = 0.0f;
-  if (P_tmp.s0 > 0.0f
-   && P_tmp.s1 > 0.0f
-   && P_tmp.s2 > 0.0f
-   && P_tmp.s3 > 0.0f) {
-    T_tmp = P_tmp.s0 * log2(P_tmp.s0*P_tmp.s1/P_tmp.s2/P_tmp.s3);
+  barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
+
+  // collect workgroup results
+  if (gid == 0) {
+    uint i;
+    float4 P = (float4) (0.0f);
+    for (i=0; i < get_num_groups(0); ++i) {
+      P += Psingle[i];
+    }
+
+    float T_tmp = 0.0f;
+    if (P.s0 > 0.0f
+     && P.s1 > 0.0f
+     && P.s2 > 0.0f
+     && P.s3 > 0.0f) {
+      T_tmp = P.s0 * log2(P.s0*P.s1/P.s2/P.s3);
+    }
+    Pacc_partial[idx] = P;
+    Tacc_partial[idx] = T_tmp;
   }
-  Pacc_partial[idx] = P_tmp;
-  Tacc_partial[idx] = T_tmp;
 }
-
 
 __kernel void compute_T(__global float4* Pacc_partial
                       , __global float* Tacc_partial
@@ -166,16 +195,17 @@ __kernel void compute_T(__global float4* Pacc_partial
   for (stride=WGSIZE/2; stride > 0; stride /= 2) {
     barrier(CLK_LOCAL_MEM_FENCE);
     if (lid < stride) {
-      Pacc[lid] += Pacc_partial[lid+stride];
-      Tacc[lid] += Tacc_partial[lid+stride];
+      Pacc[lid] += Pacc[lid+stride];
+      Tacc[lid] += Tacc[lid+stride];
     }
   }
-  barrier(CLK_LOCAL_MEM_FENCE);
+  barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
 
   // save workgroup result in global space
+  // (reusing Pacc_partial as temporary buffer)
   if (lid == 0) {
-    Pacc_partial[gid] = Pacc[0];
-    Tacc_partial[gid] = Tacc[0];
+    Pacc_partial[wid] = Pacc[0];
+    Tacc_partial[wid] = Tacc[0];
   }
   barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
 

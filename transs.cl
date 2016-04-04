@@ -91,35 +91,13 @@ __kernel void partial_probs(__global const float* buf_from
 }
 
 
-//__kernel void collect_partials(__global const float4* Psingle
-//                             , __global float4* Pacc_partial
-//                             , __global float* Tacc_partial
-//                             , uint idx
-//                             , uint n
-//                             , uint n_workgroups) {
-//  uint i;
-//  float4 P_tmp = (float4) (0.0f);
-//  for (i=0; i < n_workgroups; ++i) {
-//    P_tmp += Psingle[i];
-//  }
-//  float T_tmp = 0.0f;
-//  if (P_tmp.s0 > 0.0f
-//   && P_tmp.s1 > 0.0f
-//   && P_tmp.s2 > 0.0f
-//   && P_tmp.s3 > 0.0f) {
-//    T_tmp = P_tmp.s0 * log2(P_tmp.s0*P_tmp.s1/P_tmp.s2/P_tmp.s3);
-//  }
-//  Pacc_partial[idx] = P_tmp;
-//  Tacc_partial[idx] = T_tmp;
-//}
-
 __kernel void collect_partials(__global float4* Psingle
                              , __global float4* Pacc_partial
                              , __global float* Tacc_partial
                              , uint idx
                              , uint n
-                             , uint n_workgroups
-                             , __local float4* P_tmp) {
+                             , uint n_workgroups) {
+  float4 P_tmp[WGSIZE];
   uint stride;
   uint gid = get_global_id(0);
   uint lid = get_local_id(0);

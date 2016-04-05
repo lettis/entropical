@@ -15,8 +15,10 @@
 #include "tools.hpp"
 
 #include "transs.hpp"
-
-
+#include "mi.hpp"
+#include "dens.hpp"
+#include "amise.hpp"
+#include "hestimate.hpp"
 
 
 int main(int argc, char* argv[]) {
@@ -28,6 +30,8 @@ int main(int argc, char* argv[]) {
   try {
     opts.add_options()
       ("input,i", po::value<std::string>()->required(), "principal components (required).")
+      ("output,o", po::value<std::string>()->default_value(""), "output file (default: stdout)")
+
       ("mode,m", po::value<std::string>()->required(),
         "one of: transs (transfer entropies),"
         "        mi (mutual information),"
@@ -42,7 +46,7 @@ int main(int argc, char* argv[]) {
 
 
       ("tau,t", po::value<unsigned int>()->default_value(1), "lagtime for transfer entropy calculation (in # frames; default: 1).")
-      ("output,o", po::value<std::string>()->default_value(""), "output file (default: stdout)")
+
       ("wgsize", po::value<unsigned int>()->default_value(64), "workgroup size (default: 64)")
       ("verbose,v", po::bool_switch()->default_value(false), "verbose output.")
       

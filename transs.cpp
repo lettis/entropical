@@ -1,8 +1,54 @@
 
 #include "transs.hpp"
 #include "transs_opencl.hpp"
+#include "tools.hpp"
+
+#include <omp.h>
 
 namespace Transs {
+
+  void
+  main(boost::program_options::variables_map args) {
+    //TODO
+    
+//    bool verbose = args["verbose"].as<bool>();
+//    // set output stream to file or STDOUT, depending on args
+//    Tools::IO::set_out(args["output"].as<std::string>()); 
+//    std::string fname_input = args["input"].as<std::string>();
+    
+//    // read coordinates
+//    float* coords;
+//    std::size_t n_rows;
+//    std::size_t n_cols;
+//    if (pc_max == 0) {
+//      verbose && std::cout << "reading full dataset" << std::endl;
+//      // read full data set
+//      std::tie(coords, n_rows, n_cols) = Tools::IO::read_coords<float>(fname_input, 'C');
+//    } else {
+//      // read only until given column
+//      verbose && std::cout << "reading dataset up to PC " << pc_max << std::endl;
+//      std::tie(coords, n_rows, n_cols) = Tools::IO::read_coords<float>(fname_input, 'C', Tools::range<std::size_t>(0, pc_max, 1));
+//    }
+    
+    
+//    std::vector<std::vector<float>> T = compute_transfer_entropies(coords
+//                                                                 , n_rows
+//                                                                 , n_cols
+//                                                                 , tau
+//                                                                 , {}
+//                                                                 , wgsize);
+//    // output
+//    for (std::size_t y=0; y < n_cols; ++y) {
+//      for (std::size_t x=0; x < n_cols; ++x) {
+//        Tools::IO::out() << " " << T[y][x];
+//      }
+//      Tools::IO::out() << "\n";
+//    }
+//
+//
+//    // memory cleanup
+//    Tools::IO::free_coords(coords);
+  }
 
   std::vector<std::vector<float>> 
   compute_transfer_entropies(const float* coords
@@ -11,23 +57,14 @@ namespace Transs {
                            , unsigned int tau
                            , std::vector<float> bandwidths
                            , unsigned int wgsize) {
+
+    //TODO
+    bool verbose = false;
+
     using namespace Transs::OCL;
     std::vector<std::vector<float>> T(n_cols, std::vector<float>(n_cols, 0.0));
     std::size_t x, y, thread_id;
 
-    //TODO use bandwidths from external
-    bandwidths.resize(n_cols);
-    {
-      using namespace boost::accumulators;
-      using VarAcc = accumulator_set<float, features<tag::variance(lazy)>>;
-      for (std::size_t j=0; j < n_cols; ++j) {
-        VarAcc acc;
-        for (std::size_t i=0; i < n_rows; ++i) {
-          acc(coords[j*n_rows+i]);
-        }
-        bandwidths[j] = std::pow(n_rows, -1.0/7.0)*sqrt(variance(acc));
-      }
-    }
     // OpenCL setup
     unsigned int n_workgroups =
       (unsigned int) std::ceil(n_rows / ((float) wgsize));
@@ -40,7 +77,7 @@ namespace Transs {
     if (n_gpus == 0) {
       std::cerr << "error: no GPUs found for OpenCL "
                    "transfer entropy computation" << std::endl;
-      return EXIT_FAILURE;
+      exit( EXIT_FAILURE);
     } else {
       verbose && std::cout << "computing transfer entropies on "
                            << n_gpus

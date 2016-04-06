@@ -1,12 +1,12 @@
 
-#include "mi.hpp"
+#include "negs.hpp"
 
-namespace Mi {
+namespace Negs {
 
   void
   main(boost::program_options::variables_map args) {
     //TODO
   }
 
-} // end namespace 'Mi'
+} // end namespace 'Negs'
 

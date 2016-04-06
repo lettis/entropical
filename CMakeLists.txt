@@ -25,7 +25,8 @@ if (${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
   set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wmissing-declarations")
 else()
   message(SEND_ERROR "sorry, only GCC is supported.
-                      if you want to use another compiler, adapt CMakeLists.txt and try at your own risk.")
+                      if you want to use another compiler,
+                      adapt CMakeLists.txt and try at your own risk.")
 endif()
 
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR})
@@ -41,10 +42,23 @@ find_package(OpenCL REQUIRED)
 include_directories (${OPENCL_INCLUDE_DIRS})
 
 add_executable(probdens probdens.cpp
+                        probdens_help.cpp
+
+                        transs.cpp
                         transs_opencl.cpp
+                        mi.cpp
+                        dens.cpp
+                        negs.cpp
+                        amise.cpp
+                        hestimate.cpp
+
                         tools.cpp
                         tools_opencl.cpp)
 
-target_link_libraries(transs ${Boost_LIBRARIES} ${OPENCL_LIBRARIES} coords_file)
-install(TARGETS transs RUNTIME DESTINATION .)
+target_link_libraries(probdens
+                        ${Boost_LIBRARIES}
+                        ${OPENCL_LIBRARIES}
+                        coords_file)
+
+install(TARGETS probdens RUNTIME DESTINATION .)
 

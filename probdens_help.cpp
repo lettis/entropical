@@ -1,6 +1,8 @@
 
 #include "probdens_help.hpp"
 
+#include <iostream>
+
 namespace Probdens {
 
   void
@@ -14,7 +16,7 @@ namespace Probdens {
      || is_mode("help-dens")
      || is_mode("help-amise")
      || is_mode("help-hestimate")) {
-      std::cout << help[helpmode] << std::endl;
+      std::cout << help.at(helpmode) << std::endl;
       exit(EXIT_SUCCESS);
     } else {
       std::cerr << "no help available for option '"

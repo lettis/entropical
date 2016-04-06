@@ -1,5 +1,6 @@
 
 #include "hestimate.hpp"
+#include "tools.hpp"
 
 #include <boost/accumulators/accumulators.hpp>
 #include <boost/accumulators/statistics/variance.hpp>
@@ -25,7 +26,7 @@ namespace Hestimate {
           Tools::IO::read_coords<float>(fname_input, 'C', {col-1});
     }
     // estimate bandwidth(s)
-    for (std::size_t i_col=0; i_col < n_cols; ++i) {
+    for (std::size_t i_col=0; i_col < n_cols; ++i_col) {
       Tools::IO::out() << " " << silverman(coords, n_rows, i_col);
     }
     Tools::IO::out() << std::endl;
@@ -40,7 +41,7 @@ namespace Hestimate {
     using VarAcc = accumulator_set<float, features<tag::variance(lazy)>>;
     VarAcc acc;
     for (std::size_t i=0; i < n_rows; ++i) {
-      acc(coords[col*n_rows+i]);
+      acc(coords[i_col*n_rows+i]);
     }
     return std::pow(n_rows, -1.0/7.0)*sqrt(variance(acc));
   }

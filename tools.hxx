@@ -30,7 +30,9 @@ namespace Tools {
 namespace IO {
   template <typename NUM>
   std::tuple<NUM*, std::size_t, std::size_t>
-  read_coords(std::string filename, char primary_index, std::vector<std::size_t> usecols) {
+  read_coords(std::string filename
+            , char primary_index
+            , std::vector<std::size_t> usecols) {
     std::size_t n_rows=0;
     std::size_t n_cols=0;
     std::size_t n_cols_used=0;
@@ -66,6 +68,16 @@ namespace IO {
         col_used[i] = true;
       }
     } else {
+      // check if given column indices make sense
+      for (std::size_t i_col: usecols) {
+        if (n_cols <= i_col) {
+          std::cerr << "error: given column index "
+                    << "is not compatible with available number "
+                    << "of columns (" << n_cols << ")"
+                    << std::endl;
+          exit(EXIT_FAILURE);
+        }
+      }
       // use only defined columns
       n_cols_used = usecols.size();
       for (std::size_t i=0; i < n_cols; ++i) {
@@ -75,7 +87,8 @@ namespace IO {
         col_used[i] = true;
       }
     }
-    NUM* coords = (NUM*) _mm_malloc(sizeof(NUM)*n_rows*n_cols_used, MEM_ALIGNMENT);
+    NUM* coords = (NUM*) _mm_malloc(sizeof(NUM)*n_rows*n_cols_used
+                                  , MEM_ALIGNMENT);
     ASSUME_ALIGNED(coords);
     // read data
     for (std::size_t cur_row = 0; cur_row < n_rows; ++cur_row) {

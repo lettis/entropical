@@ -149,8 +149,11 @@ namespace Tools {
     /**
      * read coordinates from space-separated ASCII file.
      * will write data with precision of NUM-type into memory.
-     * return value: tuple of {data (unique_ptr<NUM> with custom deleter),
-     * n_rows (size_t), n_cols (size_t)}.
+     * return value: tuple of
+     *   {  data (unique_ptr<NUM> with custom deleter),
+     *    n_rows (size_t),
+     *    n_cols (size_t)}.
+     * usecols defines a preselection of columns (indices based 0).
      */
     template <typename NUM>
     std::tuple<NUM*, std::size_t, std::size_t>

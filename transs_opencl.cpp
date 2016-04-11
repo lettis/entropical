@@ -13,53 +13,6 @@
 namespace Transs {
 namespace OCL {
 
-  std::string
-  load_kernel_source(std::string fname) {
-    std::ifstream fin(fname);
-    std::string src;
-    fin.seekg(0, std::ios::end);
-    src.reserve(fin.tellg());
-    fin.seekg(0, std::ios::beg);
-    src.assign((std::istreambuf_iterator<char>(fin))
-             , std::istreambuf_iterator<char>());
-    return src;
-  }
-
-  std::vector<GPUElement>
-  gpus() {
-    std::vector<GPUElement> gpus;
-    cl_uint n_devices;
-    cl_uint n_platforms;
-    check_error(clGetPlatformIDs(0
-                               , NULL
-                               , &n_platforms), "clGetPlatformIDs");
-    std::vector<cl_platform_id> platforms(n_platforms);
-    check_error(clGetPlatformIDs(n_platforms
-                               , platforms.data()
-                               , NULL), "clGetPlatformIDs");
-    for (cl_platform_id p: platforms) {
-      check_error(clGetDeviceIDs(p
-                               , CL_DEVICE_TYPE_GPU
-                               , 0
-                               , NULL
-                               , &n_devices), "clGetDeviceIDs");
-      if (n_devices > 0) {
-        std::vector<cl_device_id> dev_ids(n_devices);
-        check_error(clGetDeviceIDs(p
-                                 , CL_DEVICE_TYPE_GPU
-                                 , n_devices
-                                 , dev_ids.data()
-                                 , NULL), "clGetDeviceIDs");
-        gpus.resize(n_devices);
-        for (cl_uint i=0; i < n_devices; ++i) {
-          gpus[i].i_dev = dev_ids[i];
-          gpus[i].i_platform = p;
-        }
-      }
-    }
-    return gpus;
-  }
-
   void
   setup_gpu(GPUElement& gpu
           , std::string kernel_src
@@ -159,44 +112,6 @@ namespace OCL {
     create_buffer("T"
                 , sizeof(float) * 2
                 , CL_MEM_READ_WRITE);
-  }
-
-  void
-  cleanup_gpu(GPUElement& gpu) {
-    check_error(clFinish(gpu.q), "cleanup: clFinish");
-    for (auto& kv: gpu.buffers) {
-      check_error(clReleaseMemObject(kv.second), "clReleaseMemObject");
-    }
-    for (auto& kv: gpu.kernels) {
-      check_error(clReleaseKernel(kv.second), "clReleaseKernel");
-    }
-    check_error(clReleaseProgram(gpu.prog), "clReleaseProgram");
-    check_error(clReleaseCommandQueue(gpu.q), "clReleaseCommandQueue");
-    check_error(clReleaseContext(gpu.ctx), "clReleaseContext");
-  }
-
-  void
-  pfn_notify(const char *errinfo
-           , const void *private_info
-           , size_t cb
-           , void *user_data) {
-    UNUSED(private_info);
-    UNUSED(cb);
-    UNUSED(user_data);
-	  std::cerr << "OpenCL Error (via pfn_notify): "
-              << errinfo
-              << std::endl;
-  }
-
-  void
-  check_error(cl_int err_code, const char* err_name) {
-    if (err_code != CL_SUCCESS) {
-      std::cerr << "error:  "
-                << err_name
-                << ": "
-                << Tools::OCL::err_to_string(err_code) << std::endl;
-      exit(EXIT_FAILURE);
-    }
   }
 
   std::pair<float, float>

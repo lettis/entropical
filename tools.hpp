@@ -52,11 +52,14 @@ namespace Tools {
     std::string
     tolower(std::string s);
     /**
-     * split string at given delimiter
+     * split string at given delimiter.
+     * if 'remove_empty' is set (default: false),
+     * remove all empty strings from result.
      */
     std::vector<std::string>
     split(std::string str
-        , char delim);
+        , char delim
+        , bool remove_empty=false);
     /**
      * remove leading and trailing spaces from string
      */
@@ -160,6 +163,17 @@ namespace Tools {
     read_coords(std::string filename,
                 char primary_index = 'R',
                 std::vector<std::size_t> usecols = {});
+
+    /**
+     * read coordinates only of specified columns. 
+     * columns are given as space-separated numerical values
+     * with 1 as the lowest index.
+     * returned coords are generally column oriented.
+     */
+    template <typename NUM>
+    std::tuple<std::vector<std::size_t>, NUM*, std::size_t, std::size_t>
+    selected_coords(std::string filename
+                  , std::string columns);
     /**
      * free memory pointing to coordinates
      */

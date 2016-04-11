@@ -112,6 +112,24 @@ namespace IO {
   }
 
   template <typename NUM>
+  std::tuple<std::vector<std::size_t>, NUM*, std::size_t, std::size_t>
+  selected_coords(std::string filename
+                , std::string columns) {
+    std::vector<std::size_t> selected_cols = {};
+    if (columns.size() > 0) {
+      for (std::string c: Tools::String::split(columns, ' ', true)) {
+        selected_cols.push_back(std::stoul(c));
+      }
+    }
+    NUM* coords;
+    std::size_t n_rows;
+    std::size_t n_cols;
+    std::tie(coords, n_rows, n_cols) =
+      Tools::IO::read_coords<NUM>(filename, 'C', selected_cols);
+    return std::make_tuple(selected_cols, coords, n_rows, n_cols);
+  }
+
+  template <typename NUM>
   void
   free_coords(NUM* coords) {
     _mm_free(coords);

@@ -48,8 +48,11 @@ int main(int argc, char* argv[]) {
 
       ("col,c", po::value<unsigned int>()->default_value(0),
         "selected column")
-//      ("colmax,C", po::value<unsigned int>()->default_value(0),
-//        "max. column (default: 0 == read all)")
+      ("columns,C", po::value<std::string>()->default_value(""),
+        "column selection, space separated indices;\n"
+        "e.g. -C \"1 3 5\" for first, third and fifth columns\n"
+        "(default: read all)")
+
 //      ("bandwidth,H", po::value<float>()->default_value(0.0f),
 //        "bandwidth for univariate density estimation")
 //      ("tau,t", po::value<unsigned int>()->default_value(1),
@@ -96,11 +99,11 @@ int main(int argc, char* argv[]) {
     // select mode and run corresponding subroutine
     std::string mode = args["mode"].as<std::string>();
     std::map<std::string, std::function<void(po::variables_map)>> subroutines;
-    subroutines["transs"] = Transs::main;
-    subroutines["mi"] = Mi::main;
-    subroutines["dens"] = Dens::main;
-    subroutines["negs"] = Negs::main;
-    subroutines["amise"] = Amise::main;
+    subroutines["transs"] = Transs::main; //TODO
+    subroutines["mi"] = Mi::main; //TODO
+    subroutines["dens"] = Dens::main; // TODO
+    subroutines["negs"] = Negs::main; // TODO
+    subroutines["amise"] = Amise::main; // TODO
     subroutines["hestimate"] = Hestimate::main;
     if (subroutines.count(mode) == 0) {
       std::cerr << "error: unknown mode '" << mode << "'" << std::endl;

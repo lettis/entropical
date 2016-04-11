@@ -1,5 +1,8 @@
 
+#include <iostream>
+
 #include "tools_opencl.hpp"
+
 
 namespace Tools {
 namespace OCL {
@@ -134,6 +137,48 @@ namespace OCL {
       default:
         return format(err, "UNKNOWN OPENCL ERROR");
     }
+  }
+
+  void
+  print_no_gpus_errmsg() {
+    std::cerr << "error: no OpenCL-enabled GPUs have been found!" << std::endl;
+  }
+
+  unsigned int
+  max_wgsize(GPUElement& gpu
+           , unsigned int needed_kernel_resources) {
+    cl_ulong max_local_mem;
+    std::size_t gpu_max_wgsize;
+    std::size_t psize;
+    // get max. local memory
+    check_error(clGetDeviceInfo(gpu.id
+                              , CL_DEVICE_LOCAL_MEM_SIZE
+                              , 0
+                              , NULL
+                              , &psize)
+              , "clGetDeviceInfo");
+    check_error(clGetDeviceInfo(gpu.id
+                              , CL_DEVICE_LOCAL_MEM_SIZE
+                              , psize
+                              , &max_local_mem
+                              , NULL)
+              , "clGetDeviceInfo");
+    // get max. work group size (1D)
+    check_error(clGetDeviceInfo(gpu.id
+                              , CL_DEVICE_MAX_WORK_GROUP_SIZE
+                              , 0
+                              , NULL
+                              , &psize)
+              , "clGetDeviceInfo");
+    check_error(clGetDeviceInfo(gpu.id
+                              , CL_DEVICE_MAX_WORK_GROUP_SIZE
+                              , psize
+                              , &gpu_max_wgsize
+                              , NULL)
+              , "clGetDeviceInfo");
+    unsigned int max_wgsize = (unsigned int)
+                                max_local_mem / needed_kernel_resources;
+    return std::min(max_wgsize, (unsigned int) gpu_max_wgsize);
   }
 
 } // end namespace Tools::OCL

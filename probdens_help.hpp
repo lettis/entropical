@@ -5,6 +5,9 @@
 #include <string>
 
 namespace Probdens {
+  /**
+   * Detailed documentation on different modes.
+   */
   const std::map<std::string, std::string> help = {
     {"help-transs",
       ""}
@@ -24,7 +27,8 @@ namespace Probdens {
   , {"help-hestimate",
       "\nhestimate - estimate kernel bandwidths for kernel density estimation\n"
       "\n"
-      "estimation is done by Silverman's rule of thumb\n"
+      "Estimation is done by Silverman's rule of thumb.\n"
+      //TODO reference
       "\n"
       "options:\n"
       "  -i [ --input ]   input file (required!)\n"
@@ -34,11 +38,8 @@ namespace Probdens {
     }
   };
 
-  //TODO: write documentation
-  
-
   /**
-   * Prints extensive documentation for given mode.
+   * Prints extensive documentation for given mode and exits program.
    */
   void
   print_help_and_exit(std::string helpmode);

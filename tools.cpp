@@ -3,6 +3,7 @@
 #include <cctype>
 #include <sstream>
 #include <stdarg.h>
+#include <algorithm>
 
 #include "tools.hpp"
 
@@ -27,7 +28,8 @@ namespace String {
 
   std::vector<std::string>
   split(std::string str
-      , char delim) {
+      , char delim
+      , bool remove_empty) {
     std::istringstream ss(str);
     std::vector<std::string> items;
     std::string item;
@@ -35,6 +37,10 @@ namespace String {
       if ( ! item.empty()) {
         items.push_back(item);
       }
+    }
+    if (remove_empty) {
+      items.erase(std::remove(items.begin(), items.end(), "")
+                , items.end());
     }
     return items;
   }

@@ -1,5 +1,4 @@
 
-#define UNUSED(expr) (void)(expr)
 
 #include "transs_opencl.hpp"
 #include "tools_opencl.hpp"
@@ -13,6 +12,7 @@
 namespace Transs {
 namespace OCL {
 
+/*
   void
   setup_gpu(GPUElement& gpu
           , std::string kernel_src
@@ -113,7 +113,11 @@ namespace OCL {
                 , sizeof(float) * 2
                 , CL_MEM_READ_WRITE);
   }
+*/
 
+
+
+  /*
   std::pair<float, float>
   transfer_entropies(GPUElement& gpu
                    , std::size_t i
@@ -267,6 +271,7 @@ namespace OCL {
     check_error(clFinish(gpu.q), "clFinish");
     return {T[0], T[1]};
   }
+*/
 
 } // end namespace Transs::OCL
 } // end namespace Transs

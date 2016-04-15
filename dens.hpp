@@ -3,16 +3,22 @@
 
 #include <boost/program_options.hpp>
 
+#include "tools_opencl.hpp"
+
 namespace Dens {
 
   /**
-   * Creates context, queue and compiled kernels for GPU and
-   * allocates buffers needed for local density estimation.
+   * Perform density computation on given GPU.
    */
-  void
-  setup_gpu(GPUElement& gpu
-          , std::string kernel_src
-          , unsigned int n_rows);
+  std::vector<float>
+  compute_densities(Tools::OCL::GPUElement& gpu
+                  , float* coords
+                  , std::size_t n_rows
+                  , std::size_t n_cols
+                  , std::size_t i_col
+                  , float h
+                  , std::size_t n_wg
+                  , std::size_t wgsize);
 
   /**
    * Check command line options, read input,

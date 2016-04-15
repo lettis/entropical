@@ -18,6 +18,46 @@ __kernel void initialize_zero(__global float* buf) {
   buf[get_global_id(0)] = 0.0f;
 }
 
+__kernel void
+probs_1d(__global const float* coords
+       , float h_inv_neg
+       , float ref_scaled
+       , float* P_partial
+       , unsigned int n
+       , float* P) {
+  __local float p_wg[WGSIZE];
+  uint stride;
+  uint gid = get_global_id(0);
+  uint lid = get_local_id(0);
+  uint wid = get_group_id(0);
+  uint n_wg = get_num_groups(0);
+  // probability for every frame
+  if (gid < n) {
+    p_wg[lid] = epanechnikov(coords[gid], ref_scaled, h_inv_neg);
+  } else {
+    p_wg[lid] = 0.0f;
+  }
+  // reduce locally
+  for (stride=WGSIZE/2; stride > 0; stride /= 2) {
+    barrier(CLK_LOCAL_MEM_FENCE);
+    if (lid < stride) {
+      p_wg[lid] += p_wg[lid+stride];
+    }
+  }
+  // reduce globally
+  if (lid == 0) {
+    P_partial[wid] = p_wg[0];
+  }
+  barrier(CLK_GLOBAL_MEM_FENCE);
+  if (gid == 0) {
+    float Pacc = 0.0f;
+    for (uint i=0; i < n_wg; ++i) {
+      Pacc += P_partial[i];
+    }
+  }
+  P[n] = Pacc;
+}
+
 /* compute and reduce probabilities to partial product-kernel sums
    by stagewise-pairwise parallel summation */
 __kernel void partial_probs(__global const float* buf_from

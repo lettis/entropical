@@ -1,7 +1,8 @@
 
 #include "transs.hpp"
-#include "transs_opencl.hpp"
 #include "tools.hpp"
+
+#include "tools_opencl.hpp"
 
 #include <omp.h>
 
@@ -9,6 +10,7 @@ namespace Transs {
 
   void
   main(boost::program_options::variables_map args) {
+    UNUSED(args);
     //TODO
     
 //    bool verbose = args["verbose"].as<bool>();
@@ -57,67 +59,72 @@ namespace Transs {
                            , unsigned int tau
                            , std::vector<float> bandwidths
                            , unsigned int wgsize) {
-
+    UNUSED(coords);
+    UNUSED(n_rows);
+    UNUSED(n_cols);
+    UNUSED(tau);
+    UNUSED(bandwidths);
+    UNUSED(wgsize);
     //TODO
-    bool verbose = false;
-
-    using namespace Transs::OCL;
-    std::vector<std::vector<float>> T(n_cols, std::vector<float>(n_cols, 0.0));
-    std::size_t x, y, thread_id;
-
-    // OpenCL setup
-    unsigned int n_workgroups =
-      (unsigned int) std::ceil(n_rows / ((float) wgsize));
-    verbose && std::cout << "(n_workgroups, n, n_extended): "
-                         << "(" << n_workgroups
-                         << ", " << n_rows
-                         << ", " << n_workgroups*wgsize << ")" << std::endl;
-    std::vector<GPUElement> available_gpus = gpus();
-    std::size_t n_gpus = available_gpus.size();
-    if (n_gpus == 0) {
-      std::cerr << "error: no GPUs found for OpenCL "
-                   "transfer entropy computation" << std::endl;
-      exit( EXIT_FAILURE);
-    } else {
-      verbose && std::cout << "computing transfer entropies on "
-                           << n_gpus
-                           << " GPUs" << std::endl;
-    }
-    std::string kernel_src = load_kernel_source("transs.cl");
-    for(GPUElement& gpu: available_gpus) {
-      setup_gpu(gpu, kernel_src, wgsize, n_workgroups, n_rows);
-    }
-    #pragma omp parallel for default(none)\
-                             private(x,y,thread_id)\
-                             firstprivate(tau,n_rows,n_cols,n_workgroups,wgsize)\
-                             shared(coords,bandwidths,available_gpus,T)\
-                             num_threads(n_gpus)\
-                             collapse(2)\
-                             schedule(dynamic, 1)
-    for (x=0; x < n_cols; ++x) {
-      for (y=0; y < n_cols; ++y) {
-        if (x < y) {
-          thread_id = omp_get_thread_num();
-          std::pair<float, float> _T = transfer_entropies(available_gpus[thread_id]
-                                                        , x
-                                                        , y
-                                                        , coords
-                                                        , n_rows
-                                                        , tau
-                                                        , bandwidths
-                                                        , wgsize
-                                                        , n_workgroups);
-          T[x][y] = _T.first;
-          T[y][x] = _T.second;
+//    bool verbose = false;
+//
+//    std::vector<std::vector<float>> T(n_cols, std::vector<float>(n_cols, 0.0));
+//    std::size_t x, y, thread_id;
+//
+//    // OpenCL setup
+//    unsigned int n_workgroups =
+//      (unsigned int) std::ceil(n_rows / ((float) wgsize));
+//    verbose && std::cout << "(n_workgroups, n, n_extended): "
+//                         << "(" << n_workgroups
+//                         << ", " << n_rows
+//                         << ", " << n_workgroups*wgsize << ")" << std::endl;
+//    std::vector<Tools::OCL::GPUElement> available_gpus = Tools::OCL::gpus();
+//    std::size_t n_gpus = available_gpus.size();
+//    if (n_gpus == 0) {
+//      std::cerr << "error: no GPUs found for OpenCL "
+//                   "transfer entropy computation" << std::endl;
+//      exit( EXIT_FAILURE);
+//    } else {
+//      verbose && std::cout << "computing transfer entropies on "
+//                           << n_gpus
+//                           << " GPUs" << std::endl;
+//    }
+//    std::string kernel_src = Tools::OCL::load_kernel_source("transs.cl");
+//    for(Tools::OCL::GPUElement& gpu: available_gpus) {
+//      //TODO
+//      //setup_gpu(gpu, kernel_src, wgsize, n_workgroups, n_rows);
+//    }
+//    #pragma omp parallel for default(none)\
+//                             private(x,y,thread_id)\
+//                             firstprivate(tau,n_rows,n_cols,n_workgroups,wgsize)\
+//                             shared(coords,bandwidths,available_gpus,T)\
+//                             num_threads(n_gpus)\
+//                             collapse(2)\
+//                             schedule(dynamic, 1)
+//    for (x=0; x < n_cols; ++x) {
+//      for (y=0; y < n_cols; ++y) {
+//        if (x < y) {
+//          thread_id = omp_get_thread_num();
+//          std::pair<float, float> _T = transfer_entropies(available_gpus[thread_id]
+//                                                        , x
+//                                                        , y
+//                                                        , coords
+//                                                        , n_rows
+//                                                        , tau
+//                                                        , bandwidths
+//                                                        , wgsize
+//                                                        , n_workgroups);
+//          T[x][y] = _T.first;
+//          T[y][x] = _T.second;
           // T[x][x] == 0  by construction
-        }
-      }
-    }
+//        }
+//      }
+//    }
     // OpenCL cleanup
-    for (GPUElement& gpu: available_gpus) {
-      cleanup_gpu(gpu);
-    }
-    return T;
+//    for (GPUElement& gpu: available_gpus) {
+//      cleanup_gpu(gpu);
+//    }
+//    return T;
   }
 
 } // end namespace 'Transs'

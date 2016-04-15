@@ -1,5 +1,6 @@
 #pragma once
 
+#define UNUSED(expr) (void)(expr)
 #define POW2(X) (X)*(X)
 
 #include <iostream>

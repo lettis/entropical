@@ -52,9 +52,9 @@ int main(int argc, char* argv[]) {
         "column selection, space separated indices;\n"
         "e.g. -C \"1 3 5\" for first, third and fifth columns\n"
         "(default: read all)")
-
-//      ("bandwidth,H", po::value<float>()->default_value(0.0f),
-//        "bandwidth for univariate density estimation")
+      ("bandwidths,H", po::value<std::string>()->default_value(""),
+        "bandwidths for univariate density estimation"
+        " as space separated values.")
 //      ("tau,t", po::value<unsigned int>()->default_value(1),
 //        "lagtime for transfer entropy calculation (in # frames; default: 1).")
 

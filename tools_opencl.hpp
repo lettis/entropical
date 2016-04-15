@@ -7,6 +7,8 @@
 #endif
 
 #include <string>
+#include <map>
+#include <vector>
 
 namespace Tools {
 namespace OCL {
@@ -55,11 +57,11 @@ namespace OCL {
 
   /**
    * Compute maximally available workgroup size for given
-   * GPU and needed kernel resources.
+   * GPU and needed kernel resources (will be a multiple of 64).
    */
   unsigned int
   max_wgsize(GPUElement& gpu
-           , unsigned int needed_kernel_resources);
+           , unsigned int bytes_per_workitem);
 
   /**
    * Callback function for OpenCL errors.
@@ -77,6 +79,24 @@ namespace OCL {
   void
   check_error(cl_int err_code
             , const char* err_name);
+
+  /**
+   * Creates context, queue and compiled kernels for GPU.
+   */
+  void
+  setup_gpu(GPUElement& gpu
+          , std::string kernel_src
+          , std::vector<std::string> used_kernels
+          , unsigned int wgsize);
+
+  /**
+   * Creates buffer on given GPU device.
+   */
+  void
+  create_buffer(GPUElement& gpu
+              , std::string bname
+              , std::size_t bsize
+              , cl_mem_flags bflags);
 
   /**
    * Release OpenCL resources for given GPU.

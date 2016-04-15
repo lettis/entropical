@@ -1,6 +1,8 @@
 
 #include <iostream>
+#include <fstream>
 
+#include "tools.hpp"
 #include "tools_opencl.hpp"
 
 
@@ -193,39 +195,41 @@ namespace OCL {
 
   unsigned int
   max_wgsize(GPUElement& gpu
-           , unsigned int needed_kernel_resources) {
+           , unsigned int bytes_per_workitem) {
     cl_ulong max_local_mem;
     std::size_t gpu_max_wgsize;
     std::size_t psize;
     // get max. local memory
-    check_error(clGetDeviceInfo(gpu.id
+    check_error(clGetDeviceInfo(gpu.i_dev
                               , CL_DEVICE_LOCAL_MEM_SIZE
                               , 0
                               , NULL
                               , &psize)
               , "clGetDeviceInfo");
-    check_error(clGetDeviceInfo(gpu.id
+    check_error(clGetDeviceInfo(gpu.i_dev
                               , CL_DEVICE_LOCAL_MEM_SIZE
                               , psize
                               , &max_local_mem
                               , NULL)
               , "clGetDeviceInfo");
     // get max. work group size (1D)
-    check_error(clGetDeviceInfo(gpu.id
+    check_error(clGetDeviceInfo(gpu.i_dev
                               , CL_DEVICE_MAX_WORK_GROUP_SIZE
                               , 0
                               , NULL
                               , &psize)
               , "clGetDeviceInfo");
-    check_error(clGetDeviceInfo(gpu.id
+    check_error(clGetDeviceInfo(gpu.i_dev
                               , CL_DEVICE_MAX_WORK_GROUP_SIZE
                               , psize
                               , &gpu_max_wgsize
                               , NULL)
               , "clGetDeviceInfo");
     unsigned int max_wgsize = (unsigned int)
-                                max_local_mem / needed_kernel_resources;
-    return std::min(max_wgsize, (unsigned int) gpu_max_wgsize);
+                                max_local_mem / bytes_per_workitem;
+    max_wgsize = std::min(max_wgsize, (unsigned int) gpu_max_wgsize);
+    // make it a multiple of 64 for better GPU utilization
+    return 64 * (max_wgsize / 64);
   }
 
   void
@@ -250,6 +254,83 @@ namespace OCL {
                 << Tools::OCL::err_to_string(err_code) << std::endl;
       exit(EXIT_FAILURE);
     }
+  }
+
+  void
+  setup_gpu(GPUElement& gpu
+          , std::string kernel_src
+          , std::vector<std::string> used_kernels
+          , unsigned int wgsize) {
+    cl_int err;
+    // prepare kernel source
+    kernel_src = std::string("#define WGSIZE ")
+                 + std::to_string(wgsize)
+                 + std::string("\n")
+                 + kernel_src;
+    const char* src = kernel_src.c_str();
+    // create context
+    gpu.ctx = clCreateContext(NULL
+                            , 1
+                            , &gpu.i_dev
+                            , &pfn_notify
+                            , NULL
+                            , &err);
+    check_error(err, "clCreateContext");
+    // command queue
+    gpu.q = clCreateCommandQueue(gpu.ctx
+                               , gpu.i_dev
+                               , 0
+                               , &err);
+    check_error(err, "clCreateCommandQueue");
+    // create program
+    gpu.prog = clCreateProgramWithSource(gpu.ctx
+                                       , 1
+                                       , &src
+                                       , NULL
+                                       , &err);
+    check_error(err, "clCreateProgramWithSource");
+    // compile kernels
+    if (clBuildProgram(gpu.prog
+                     , 1
+                     , &gpu.i_dev
+                     , ""
+                     , NULL
+                     , NULL) != CL_SUCCESS) {
+      char buffer[10240];
+      clGetProgramBuildInfo(gpu.prog
+                          , gpu.i_dev
+                          , CL_PROGRAM_BUILD_LOG
+                          , sizeof(buffer)
+                          , buffer
+                          , NULL);
+      std::cerr << "CL Compilation failed:" << std::endl
+                << buffer << std::endl;
+      exit(EXIT_FAILURE);
+    }
+    // create kernel objects
+    auto create_kernel = [&](std::string kname) -> void {
+      gpu.kernels[kname] = clCreateKernel(gpu.prog
+                                        , kname.c_str()
+                                        , &err);
+      check_error(err, "clCreateKernel");
+    };
+    for (std::string kernel: used_kernels) {
+      create_kernel(kernel);
+    }
+  }
+
+  void
+  create_buffer(GPUElement& gpu
+              , std::string bname
+              , std::size_t bsize
+              , cl_mem_flags bflags) {
+    int err;
+    gpu.buffers[bname] = clCreateBuffer(gpu.ctx
+                                      , bflags
+                                      , bsize
+                                      , NULL
+                                      , &err);
+    check_error(err, "clCreateBuffer");
   }
 
   void

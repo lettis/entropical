@@ -6,122 +6,89 @@
 
 namespace Dens {
 
-  void
-  setup_gpu(GPUElement& gpu
-          , std::string kernel_src
-          , unsigned int n_rows) {
-
-    //TODO adapt to Dens
-
-
-    unsigned int n_extended = n_workgroups * wgsize;
-    cl_int err;
-    // prepare kernel source
-    kernel_src = std::string("#define WGSIZE ")
-                 + std::to_string(wgsize)
-                 + std::string("\n")
-                 + kernel_src;
-    const char* src = kernel_src.c_str();
-    // create context
-    gpu.ctx = clCreateContext(NULL
-                            , 1
-                            , &gpu.i_dev
-                            , &pfn_notify
-                            , NULL
-                            , &err);
-    check_error(err, "clCreateContext");
-    // command queue
-    gpu.q = clCreateCommandQueue(gpu.ctx
-                               , gpu.i_dev
-                               , 0
-                               , &err);
-    check_error(err, "clCreateCommandQueue");
-    // create program
-    gpu.prog = clCreateProgramWithSource(gpu.ctx
-                                       , 1
-                                       , &src
-                                       , NULL
-                                       , &err);
-    check_error(err, "clCreateProgramWithSource");
-    // compile kernels
-    if (clBuildProgram(gpu.prog
-                     , 1
-                     , &gpu.i_dev
-                     , ""
-                     , NULL
-                     , NULL) != CL_SUCCESS) {
-      char buffer[10240];
-      clGetProgramBuildInfo(gpu.prog
-                          , gpu.i_dev
-                          , CL_PROGRAM_BUILD_LOG
-                          , sizeof(buffer)
-                          , buffer
-                          , NULL);
-      std::cerr << "CL Compilation failed:" << std::endl
-                << buffer << std::endl;
-      exit(EXIT_FAILURE);
-    }
-    // create kernel objects
-    auto create_kernel = [&](std::string kname) -> void {
-      gpu.kernels[kname] = clCreateKernel(gpu.prog
-                                        , kname.c_str()
-                                        , &err);
-      check_error(err, "clCreateKernel");
-    };
-    create_kernel("partial_probs");
-    create_kernel("collect_partials");
-    create_kernel("compute_T");
-    create_kernel("initialize_zero");
-    // create buffers
-    auto create_buffer = [&](std::string bname
-                           , std::size_t bsize
-                           , cl_mem_flags bflags) -> void {
-      gpu.buffers[bname] = clCreateBuffer(gpu.ctx
-                                        , bflags
-                                        , bsize
-                                        , NULL
-                                        , &err);
-      check_error(err, "clCreateBuffer");
-    };
-    // input coordinates
-    create_buffer("i"
-                , sizeof(float) * n_extended
-                , CL_MEM_READ_WRITE);
-    // input coordinates
-    create_buffer("j"
-                , sizeof(float) * n_extended
-                , CL_MEM_READ_WRITE);
-    // probabilities pre-reduced on workgroup level (single frame)
-    create_buffer("Psingle"
-                , sizeof(float) * 4*n_workgroups
-                , CL_MEM_READ_WRITE | CL_MEM_HOST_NO_ACCESS);
-    // partially accumulated probabilities
-    create_buffer("Pacc_partial"
-                , sizeof(float) * 4*n_rows
-                , CL_MEM_READ_WRITE | CL_MEM_HOST_NO_ACCESS);
-    // partially accumulated transfer entropy
-    create_buffer("Tacc_partial"
-                , sizeof(float) * n_rows
-                , CL_MEM_READ_WRITE | CL_MEM_HOST_NO_ACCESS);
-    // resulting transfer entropy
-    create_buffer("T"
-                , sizeof(float) * 2
-                , CL_MEM_READ_WRITE);
-  }
-
-
-
-
   std::vector<float>
   compute_densities(Tools::OCL::GPUElement& gpu
                   , float* coords
                   , std::size_t n_rows
                   , std::size_t n_cols
-                  , std::size_t i_col) {
+                  , std::size_t i_col
+                  , float h
+                  , std::size_t n_wg
+                  , std::size_t wgsize) {
+    UNUSED(n_cols);
+    float h_inv = 1.0f / h;
+    float h_inv_neg = -1.0f * h_inv;
+    using Tools::OCL::check_error;
+    // copy coords of given column to device
+    check_error(clEnqueueWriteBuffer(gpu.q
+                                   , gpu.buffers["coords"]
+                                   , CL_TRUE
+                                   , 0
+                                   , sizeof(float) * n_rows
+                                   , &coords[i_col*n_rows]
+                                   , 0
+                                   , NULL
+                                   , NULL)
+              , "clEnqueueWriteBuffer");
+    check_error(clSetKernelArg(gpu.kernels["probs_1d"]
+                             , 0
+                             , sizeof(cl_mem)
+                             , (void*) &gpu.buffers["coords"])
+              , "clSetKernelArg");
+    check_error(clSetKernelArg(gpu.kernels["probs_1d"]
+                             , 1
+                             , sizeof(float)
+                             , &h_inv_neg)
+              , "clSetKernelArg");
+    check_error(clSetKernelArg(gpu.kernels["probs_1d"]
+                             , 3
+                             , sizeof(cl_mem)
+                             , (void*) &gpu.buffers["P_partial"])
+              , "clSetKernelArg");
+    check_error(clSetKernelArg(gpu.kernels["probs_1d"]
+                             , 5
+                             , sizeof(cl_mem)
+                             , (void*) &gpu.buffers["P"])
+              , "clSetKernelArg");
+    std::size_t global_worksize = n_wg * wgsize;
+    std::size_t local_worksize = wgsize;
+    // run kernel-loop over all frames
+    for (unsigned int i=0; i < n_rows; ++i) {
+      float ref_scaled = coords[i_col*n_rows + i] * h_inv;
+      check_error(clSetKernelArg(gpu.kernels["probs_1d"]
+                               , 2
+                               , sizeof(float)
+                               , &ref_scaled)
+                , "clSetKernelArg");
+      check_error(clSetKernelArg(gpu.kernels["probs_1d"]
+                               , 4
+                               , sizeof(unsigned int)
+                               , &i)
+                , "clSetKernelArg");
+      check_error(clEnqueueNDRangeKernel(gpu.q
+                                       , gpu.kernels["probs_1d"]
+                                       , 0
+                                       , NULL
+                                       , &global_worksize
+                                       , &local_worksize
+                                       , 0
+                                       , NULL
+                                       , NULL)
+                , "clEnqueueNDRangeKernel");
+      check_error(clFlush(gpu.q), "clFlush");
+    }
+    // retrieve probability densities from device
     std::vector<float> densities(n_rows);
-
-    //TODO compute densities
-
+    check_error(clEnqueueReadBuffer(gpu.q
+                                  , gpu.buffers["P"]
+                                  , CL_TRUE
+                                  , 0
+                                  , sizeof(float) * n_rows
+                                  , densities.data()
+                                  , 0
+                                  , NULL
+                                  , NULL)
+              , "clEnqueueReadBuffer");
     return densities;
   }
 
@@ -137,6 +104,18 @@ namespace Dens {
     std::tie(selected_cols, coords, n_rows, n_cols)
       = Tools::IO::selected_coords<float>(fname_input
                                         , args["columns"].as<std::string>());
+    std::vector<float> bandwidths;
+    using Tools::String::split;
+    for (std::string h: split(args["bandwidths"].as<std::string>()
+                            , ' '
+                            , true)) {
+      bandwidths.push_back(std::stof(h));
+    }
+    if (bandwidths.size() != selected_cols.size()) {
+      std::cerr << "error: number of given bandwidth values does not match"
+                         " the number of selected columns!" << std::endl;
+      exit(EXIT_FAILURE);
+    }
     // setup OpenCL environment
     std::vector<Tools::OCL::GPUElement> gpus = Tools::OCL::gpus();
     std::size_t n_gpus = gpus.size();
@@ -144,15 +123,40 @@ namespace Dens {
       Tools::OCL::print_no_gpus_errmsg();
       exit(EXIT_FAILURE);
     }
-    //TODO finish OpenCL setup
+    // determine workgroup size and no. of workgroups from
+    // available device memory and data size
+    unsigned int wgsize = Tools::OCL::max_wgsize(gpus[0], sizeof(float));
+    unsigned int n_wg = (unsigned int) std::ceil(n_rows / ((float) wgsize));
+    //TODO embed kernel source in header
+    std::string kernel_src = Tools::OCL::load_kernel_source("kernels.cl");
+    for (Tools::OCL::GPUElement& gpu: gpus) {
+      Tools::OCL::setup_gpu(gpu
+                          , kernel_src
+                          , {"probs_1d"}
+                          , wgsize);
+      Tools::OCL::create_buffer(gpu
+                              , "coords"
+                              , sizeof(float) * n_wg * wgsize
+                              , CL_MEM_READ_ONLY);
+      Tools::OCL::create_buffer(gpu
+                              , "P"
+                              , sizeof(float) * n_rows
+                              , CL_MEM_WRITE_ONLY);
+      Tools::OCL::create_buffer(gpu
+                              , "P_partial"
+                              , sizeof(float) * n_wg
+                              , CL_MEM_READ_WRITE | CL_MEM_HOST_NO_ACCESS);
+    }
     // compute local densities on GPUs
     unsigned int i, j, thread_id;
     unsigned int n_selected_cols = selected_cols.size();
     std::vector<std::vector<float>> densities(selected_cols.size());
     #pragma omp parallel for default(none)\
                              private(j,thread_id)\
-                             firstprivate(n_selected_cols,n_rows,n_cols)\
-                             shared(coords,selected_cols,gpus,densities)\
+                             firstprivate(n_selected_cols,n_rows,\
+                                          n_cols,n_wg,wgsize)\
+                             shared(coords,selected_cols,gpus,\
+                                    densities,bandwidths)\
                              schedule(dynamic,1)
     for (j=0; j < n_selected_cols; ++j) {
       thread_id = omp_get_thread_num();
@@ -160,7 +164,10 @@ namespace Dens {
                                      , coords
                                      , n_rows
                                      , n_cols
-                                     , selected_cols[j]);
+                                     , selected_cols[j]
+                                     , bandwidths[j]
+                                     , n_wg
+                                     , wgsize);
     }
     // output: densities
     for (i=0; i < n_rows; ++i) {

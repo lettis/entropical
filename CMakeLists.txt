@@ -41,24 +41,24 @@ include_directories (${Boost_INCLUDE_DIR})
 find_package(OpenCL REQUIRED)
 include_directories (${OPENCL_INCLUDE_DIRS})
 
-add_executable(probdens probdens.cpp
-                        probdens_help.cpp
+add_executable(im im.cpp
+                  im_help.cpp
 
-                        transs.cpp
-                        transs_opencl.cpp
-                        mi.cpp
-                        dens.cpp
-                        negs.cpp
-                        amise.cpp
-                        hestimate.cpp
+                  transs.cpp
+                  transs_opencl.cpp
+                  mi.cpp
+                  dens.cpp
+                  negs.cpp
+                  amise.cpp
+                  hestimate.cpp
 
-                        tools.cpp
-                        tools_opencl.cpp)
+                  tools.cpp
+                  tools_opencl.cpp)
 
-target_link_libraries(probdens
-                        ${Boost_LIBRARIES}
-                        ${OPENCL_LIBRARIES}
-                        coords_file)
+target_link_libraries(im
+                      ${Boost_LIBRARIES}
+                      ${OPENCL_LIBRARIES}
+                      coords_file)
 
-install(TARGETS probdens RUNTIME DESTINATION .)
+install(TARGETS im RUNTIME DESTINATION .)
 

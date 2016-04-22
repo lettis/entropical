@@ -4,7 +4,7 @@
 #include <map>
 #include <string>
 
-namespace Probdens {
+namespace IM {
   /**
    * Detailed documentation on different modes.
    */
@@ -16,7 +16,17 @@ namespace Probdens {
       ""}
 
   , {"help-dens",
-      ""}
+      "dens - compute local probability densities using 1D kernel density estimation\n"
+      "\n"
+      "options:\n"
+      "  -i [ --input ]      input file (required!)\n"
+      "  -H [ --bandwidths ] bandwidths for univariate density estimation\n"
+      "                      as space separated values. (required!)\n"
+      "  -o [ --output ]     output file (default: stdout)\n"
+      "  -C [ --columns ]    column selection, space separated indices;\n"
+      "                      e.g. -C \"1 3 5\" for first, third and fifth columns\n"
+      "                      (default: read all)\n"
+    }
 
   , {"help-negs",
       ""}
@@ -27,8 +37,9 @@ namespace Probdens {
   , {"help-hestimate",
       "\nhestimate - estimate kernel bandwidths for kernel density estimation\n"
       "\n"
-      "Estimation is done by Silverman's rule of thumb.\n"
-      //TODO reference
+      "Estimation is done by Silverman's rule of thumb\n"
+      "(see: B.W. Silverman, \"Density Estimation for Statistics and Data"
+      " Analysis\".\n London: Chapman & Hall/CRC. p. 48. ISBN 0-412-24620-1.)\n"
       "\n"
       "options:\n"
       "  -i [ --input ]   input file (required!)\n"

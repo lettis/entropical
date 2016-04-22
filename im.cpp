@@ -11,8 +11,8 @@
 
 #include <omp.h>
 
-#include "probdens.hpp"
-#include "probdens_help.hpp"
+#include "im.hpp"
+#include "im_help.hpp"
 
 #include "tools.hpp"
 
@@ -28,8 +28,10 @@ int main(int argc, char* argv[]) {
   namespace po = boost::program_options;
   po::variables_map args;
   po::options_description opts(std::string(argv[0]).append(
-    " [OPTIONS] FILE\n\n"
-    "compute local probabilities and information transfer"));
+    " [OPTIONS]\n\n"
+    "compute information measures like local probabilities,"
+    " mutual information, information transfer, etc.\n\n"
+    "options"));
   try {
     opts.add_options()
       ("input,i", po::value<std::string>(),
@@ -41,7 +43,7 @@ int main(int argc, char* argv[]) {
         "one of:\n"
         "        transs (transfer entropies),\n"
         "        mi (mutual information),\n"
-        "        dens (local density),\n"
+        "        dens (local probability density),\n"
         "        negs (negentropy),\n"
         "        amise (AMISE),\n"
         "        hestimate (bandwidth estimation)")
@@ -83,7 +85,7 @@ int main(int argc, char* argv[]) {
     // documentation
     auto check_special_help = [&] (std::string helpmode) -> void {
       if (args[helpmode].as<bool>()) {
-        Probdens::print_help_and_exit(helpmode);
+        IM::print_help_and_exit(helpmode);
       }
     };
     if (args["help"].as<bool>()) {

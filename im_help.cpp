@@ -1,9 +1,9 @@
 
-#include "probdens_help.hpp"
+#include "im_help.hpp"
 
 #include <iostream>
 
-namespace Probdens {
+namespace IM {
 
   void
   print_help_and_exit(std::string helpmode) {

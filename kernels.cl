@@ -22,9 +22,9 @@ __kernel void
 probs_1d(__global const float* coords
        , float h_inv_neg
        , float ref_scaled
-       , float* P_partial
+       , __global float* P_partial
        , unsigned int n
-       , float* P) {
+       , __global float* P) {
   __local float p_wg[WGSIZE];
   uint stride;
   uint gid = get_global_id(0);
@@ -54,8 +54,8 @@ probs_1d(__global const float* coords
     for (uint i=0; i < n_wg; ++i) {
       Pacc += P_partial[i];
     }
+    P[n] = Pacc;
   }
-  P[n] = Pacc;
 }
 
 /* compute and reduce probabilities to partial product-kernel sums

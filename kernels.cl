@@ -9,6 +9,8 @@ float epanechnikov( float x
   p *= p;
   if (p <= 1.0f) {
     p = fma(p, -0.75f, 0.75f);
+  } else {
+    p = 0.0f;
   }
   return p;
 }
@@ -26,6 +28,7 @@ probs_1d(__global const float* coords
        , unsigned int n
        , __global float* P) {
   __local float p_wg[WGSIZE];
+//TODO: this code works only, if coords are sorted!
   uint stride;
   uint gid = get_global_id(0);
   uint lid = get_local_id(0);
@@ -33,7 +36,7 @@ probs_1d(__global const float* coords
   uint n_wg = get_num_groups(0);
   // probability for every frame
   if (gid < n) {
-    p_wg[lid] = epanechnikov(coords[gid], ref_scaled, h_inv_neg);
+    p_wg[lid] = h_inv_neg * epanechnikov(coords[gid], ref_scaled, h_inv_neg);
   } else {
     p_wg[lid] = 0.0f;
   }
@@ -46,7 +49,7 @@ probs_1d(__global const float* coords
   }
   // reduce globally
   if (lid == 0) {
-    P_partial[wid] = p_wg[0];
+    P_partial[wid] = -1.0f / ((float) WGSIZE) * p_wg[0];
   }
   barrier(CLK_GLOBAL_MEM_FENCE);
   if (gid == 0) {
@@ -54,7 +57,7 @@ probs_1d(__global const float* coords
     for (uint i=0; i < n_wg; ++i) {
       Pacc += P_partial[i];
     }
-    P[n] = Pacc;
+    P[n] = Pacc / ((float) n_wg);
   }
 }
 

@@ -121,11 +121,20 @@ namespace IO {
         selected_cols.push_back(std::stoul(c));
       }
     }
+    std::vector<std::size_t> selected_cols_base0;
+    for (std::size_t c: selected_cols) {
+      if (c <= 0) {
+        std::cerr << "error: specify column in range of [1, N_COLUMNS]!"
+                  << std::endl;
+        exit(EXIT_FAILURE);
+      }
+      selected_cols_base0.push_back(c-1);
+    }
     NUM* coords;
     std::size_t n_rows;
     std::size_t n_cols;
     std::tie(coords, n_rows, n_cols) =
-      Tools::IO::read_coords<NUM>(filename, 'C', selected_cols);
+      Tools::IO::read_coords<NUM>(filename, 'C', selected_cols_base0);
     return std::make_tuple(selected_cols, coords, n_rows, n_cols);
   }
 

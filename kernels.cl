@@ -3,9 +3,9 @@
 
 /* local probability from Epanechnikov kernel */
 float epanechnikov( float x
-                  , float ref_scaled
-                  , float h_inv_neg) {
-  float p = fma(h_inv_neg, x, ref_scaled);
+                  , float ref_scaled_neg
+                  , float h_inv) {
+  float p = fma(h_inv, x, ref_scaled_neg);
   p *= p;
   if (p <= 1.0f) {
     p = fma(p, -0.75f, 0.75f);
@@ -21,14 +21,13 @@ __kernel void initialize_zero(__global float* buf) {
 }
 
 __kernel void
-probs_1d(__global const float* coords
-       , float h_inv_neg
-       , float ref_scaled
+probs_1d(__global const float* sorted_coords
+       , float h_inv
+       , float ref_scaled_neg
        , __global float* P_partial
        , unsigned int n
        , __global float* P) {
   __local float p_wg[WGSIZE];
-//TODO: this code works only, if coords are sorted!
   uint stride;
   uint gid = get_global_id(0);
   uint lid = get_local_id(0);
@@ -36,7 +35,9 @@ probs_1d(__global const float* coords
   uint n_wg = get_num_groups(0);
   // probability for every frame
   if (gid < n) {
-    p_wg[lid] = h_inv_neg * epanechnikov(coords[gid], ref_scaled, h_inv_neg);
+    p_wg[lid] = h_inv * epanechnikov(sorted_coords[gid]
+                                   , ref_scaled_neg
+                                   , h_inv);
   } else {
     p_wg[lid] = 0.0f;
   }
@@ -49,7 +50,7 @@ probs_1d(__global const float* coords
   }
   // reduce globally
   if (lid == 0) {
-    P_partial[wid] = -1.0f / ((float) WGSIZE) * p_wg[0];
+    P_partial[wid] = p_wg[0] / ((float) WGSIZE);
   }
   barrier(CLK_GLOBAL_MEM_FENCE);
   if (gid == 0) {
@@ -60,6 +61,15 @@ probs_1d(__global const float* coords
     P[n] = Pacc / ((float) n_wg);
   }
 }
+
+
+__kernel void
+normalize_probs(__global float* P) {
+  //TODO
+}
+
+
+
 
 /* compute and reduce probabilities to partial product-kernel sums
    by stagewise-pairwise parallel summation */

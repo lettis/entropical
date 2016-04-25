@@ -10,36 +10,36 @@ namespace Dens {
   compute_densities(Tools::OCL::GPUElement& gpu
                   , float* coords
                   , std::size_t n_rows
-                  , std::size_t n_cols
                   , std::size_t i_col
+                  , const std::vector<float>& sorted_coords
                   , float h
                   , std::size_t n_wg
                   , std::size_t wgsize) {
-    UNUSED(n_cols);
     float h_inv = 1.0f / h;
-    float h_inv_neg = -1.0f * h_inv;
+    //float h_inv_neg = -1.0f * h_inv;
     using Tools::OCL::check_error;
     // copy coords of given column to device
     check_error(clEnqueueWriteBuffer(gpu.q
-                                   , gpu.buffers["coords"]
+                                   , gpu.buffers["sorted_coords"]
                                    , CL_TRUE
                                    , 0
-                                   , sizeof(float) * n_rows
-                                   , &coords[i_col*n_rows]
+                                   , sizeof(float) * sorted_coords.size()
+                                   , sorted_coords.data()
                                    , 0
                                    , NULL
                                    , NULL)
               , "clEnqueueWriteBuffer");
     check_error(clFlush(gpu.q), "clFlush");
+    // set kernel parameters
     check_error(clSetKernelArg(gpu.kernels["probs_1d"]
                              , 0
                              , sizeof(cl_mem)
-                             , (void*) &gpu.buffers["coords"])
+                             , (void*) &gpu.buffers["sorted_coords"])
               , "clSetKernelArg");
     check_error(clSetKernelArg(gpu.kernels["probs_1d"]
                              , 1
                              , sizeof(float)
-                             , &h_inv_neg)
+                             , &h_inv)
               , "clSetKernelArg");
     check_error(clSetKernelArg(gpu.kernels["probs_1d"]
                              , 3
@@ -55,11 +55,11 @@ namespace Dens {
     std::size_t local_worksize = wgsize;
     // run kernel-loop over all frames
     for (unsigned int i=0; i < n_rows; ++i) {
-      float ref_scaled = coords[i_col*n_rows + i] * h_inv;
+      float ref_scaled_neg = -1.0f * coords[i_col*n_rows + i] * h_inv;
       check_error(clSetKernelArg(gpu.kernels["probs_1d"]
                                , 2
                                , sizeof(float)
-                               , &ref_scaled)
+                               , &ref_scaled_neg)
                 , "clSetKernelArg");
       check_error(clSetKernelArg(gpu.kernels["probs_1d"]
                                , 4
@@ -136,7 +136,7 @@ namespace Dens {
                           , {"probs_1d"}
                           , wgsize);
       Tools::OCL::create_buffer(gpu
-                              , "coords"
+                              , "sorted_coords"
                               , sizeof(float) * n_wg * wgsize
                               , CL_MEM_READ_ONLY);
       Tools::OCL::create_buffer(gpu
@@ -152,9 +152,9 @@ namespace Dens {
     unsigned int i, j, thread_id;
     unsigned int n_selected_cols = selected_cols.size();
     std::vector<std::vector<float>> densities(selected_cols.size());
-//TODO normalized densities!
+    std::vector<float> sorted_coords;
     #pragma omp parallel for default(none)\
-                             private(j,thread_id)\
+                             private(i,j,thread_id,sorted_coords)\
                              firstprivate(n_selected_cols,n_rows,\
                                           n_cols,n_wg,wgsize)\
                              shared(coords,selected_cols,gpus,\
@@ -162,16 +162,22 @@ namespace Dens {
                              num_threads(n_gpus)\
                              schedule(dynamic,1)
     for (j=0; j < n_selected_cols; ++j) {
+      sorted_coords.resize(n_rows);
+      for (i=0; i < n_rows; ++i) {
+        sorted_coords[i] = coords[j*n_rows+i];
+      }
+      std::sort(sorted_coords.begin(), sorted_coords.end());
       thread_id = omp_get_thread_num();
       densities[j] = compute_densities(gpus[thread_id]
                                      , coords
                                      , n_rows
-                                     , n_cols
                                      , j
+                                     , sorted_coords
                                      , bandwidths[j]
                                      , n_wg
                                      , wgsize);
     }
+//TODO normalized densities!
     // output: densities
     for (i=0; i < n_rows; ++i) {
       for (j=0; j < selected_cols.size(); ++j) {

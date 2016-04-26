@@ -16,7 +16,6 @@ namespace Dens {
                   , float* coords
                   , std::size_t n_rows
                   , std::size_t i_col
-                  , const std::vector<float>& sorted_coords
                   , float h
                   , std::size_t n_wg
                   , std::size_t wgsize);

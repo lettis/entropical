@@ -347,6 +347,19 @@ namespace OCL {
     check_error(clReleaseContext(gpu.ctx), "clReleaseContext");
   }
 
+
+  template <> void
+  set_kernel_arg<std::string>(GPUElement& gpu
+                            , std::string kernel
+                            , unsigned int n_param
+                            , std::string kernel_arg) {
+    check_error(clSetKernelArg(gpu.kernels[kernel]
+                             , n_param
+                             , sizeof(cl_mem)
+                             , (void*) &gpu.buffers[kernel_arg])
+              , "clSetKernelArg");
+  }
+
 } // end namespace Tools::OCL
 } // end namespace Tools
 

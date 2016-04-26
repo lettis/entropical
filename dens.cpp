@@ -1,4 +1,5 @@
 
+#include <algorithm>
 #include <omp.h>
 
 #include "dens.hpp"
@@ -11,19 +12,23 @@ namespace Dens {
                   , float* coords
                   , std::size_t n_rows
                   , std::size_t i_col
-                  , const std::vector<float>& sorted_coords
                   , float h
                   , std::size_t n_wg
                   , std::size_t wgsize) {
-    float h_inv = 1.0f / h;
-    //float h_inv_neg = -1.0f * h_inv;
     using Tools::OCL::check_error;
+    float h_inv = 1.0f / h;
+    // pre-sort coordinates
+    std::vector<float> sorted_coords(n_rows);
+    for (std::size_t i=0; i < n_rows; ++i) {
+      sorted_coords[i] = coords[i_col*n_rows + i];
+    }
+    std::sort(sorted_coords.begin(), sorted_coords.end());
     // copy coords of given column to device
     check_error(clEnqueueWriteBuffer(gpu.q
                                    , gpu.buffers["sorted_coords"]
                                    , CL_TRUE
                                    , 0
-                                   , sizeof(float) * sorted_coords.size()
+                                   , sizeof(float) * n_rows
                                    , sorted_coords.data()
                                    , 0
                                    , NULL
@@ -31,41 +36,68 @@ namespace Dens {
               , "clEnqueueWriteBuffer");
     check_error(clFlush(gpu.q), "clFlush");
     // set kernel parameters
-    check_error(clSetKernelArg(gpu.kernels["probs_1d"]
+    Tools::OCL::set_kernel_arg(gpu, "probs_1d", 0, std::string("sorted_coords"));
+    Tools::OCL::set_kernel_arg(gpu, "probs_1d", 1, (unsigned int) n_rows);
+    Tools::OCL::set_kernel_arg(gpu, "probs_1d", 2, std::string("P_partial"));
+    Tools::OCL::set_kernel_arg(gpu, "probs_1d", 3, std::string("P"));
+    Tools::OCL::set_kernel_arg(gpu, "probs_1d", 4, h_inv);
+    std::size_t global_worksize = n_wg * wgsize;
+    std::size_t local_worksize = wgsize;
+
+    check_error(clSetKernelArg(gpu.kernels["initialize_zero"]
                              , 0
-                             , sizeof(cl_mem)
-                             , (void*) &gpu.buffers["sorted_coords"])
-              , "clSetKernelArg");
-    check_error(clSetKernelArg(gpu.kernels["probs_1d"]
-                             , 1
-                             , sizeof(float)
-                             , &h_inv)
-              , "clSetKernelArg");
-    check_error(clSetKernelArg(gpu.kernels["probs_1d"]
-                             , 3
-                             , sizeof(cl_mem)
-                             , (void*) &gpu.buffers["P_partial"])
-              , "clSetKernelArg");
-    check_error(clSetKernelArg(gpu.kernels["probs_1d"]
-                             , 5
                              , sizeof(cl_mem)
                              , (void*) &gpu.buffers["P"])
               , "clSetKernelArg");
-    std::size_t global_worksize = n_wg * wgsize;
-    std::size_t local_worksize = wgsize;
+    check_error(clSetKernelArg(gpu.kernels["initialize_zero"]
+                             , 1
+                             , sizeof(unsigned int)
+                             , &n_rows)
+              , "clSetKernelArg");
+    check_error(clEnqueueNDRangeKernel(gpu.q
+                                     , gpu.kernels["initialize_zero"]
+                                     , 1
+                                     , NULL
+                                     , &global_worksize
+                                     , &local_worksize
+                                     , 0
+                                     , NULL
+                                     , NULL)
+              , "clEnqueueNDRangeKernel");
+    check_error(clFlush(gpu.q), "clFlush");
+    check_error(clFinish(gpu.q), "clFinish");
+
     // run kernel-loop over all frames
     for (unsigned int i=0; i < n_rows; ++i) {
-      float ref_scaled_neg = -1.0f * coords[i_col*n_rows + i] * h_inv;
-      check_error(clSetKernelArg(gpu.kernels["probs_1d"]
-                               , 2
-                               , sizeof(float)
-                               , &ref_scaled_neg)
+      unsigned int n_wg_tmp = n_wg;
+      check_error(clSetKernelArg(gpu.kernels["initialize_zero"]
+                               , 0
+                               , sizeof(cl_mem)
+                               , (void*) &gpu.buffers["P_partial"])
                 , "clSetKernelArg");
-      check_error(clSetKernelArg(gpu.kernels["probs_1d"]
-                               , 4
+      check_error(clSetKernelArg(gpu.kernels["initialize_zero"]
+                               , 1
                                , sizeof(unsigned int)
-                               , &i)
+                               , &n_wg_tmp)
                 , "clSetKernelArg");
+      check_error(clEnqueueNDRangeKernel(gpu.q
+                                       , gpu.kernels["initialize_zero"]
+                                       , 1
+                                       , NULL
+                                       , &global_worksize
+                                       , &local_worksize
+                                       , 0
+                                       , NULL
+                                       , NULL)
+                , "clEnqueueNDRangeKernel");
+      check_error(clFlush(gpu.q), "clFlush");
+      check_error(clFinish(gpu.q), "clFinish");
+
+//      float ref_scaled_neg = 0.0f;
+      float ref_scaled_neg = -1.0f * coords[i_col*n_rows + i] * h_inv;
+//      float ref_scaled_neg = -1.0f * sorted_coords[i] * h_inv;
+      Tools::OCL::set_kernel_arg(gpu, "probs_1d", 5, ref_scaled_neg);
+      Tools::OCL::set_kernel_arg(gpu, "probs_1d", 6, i);
       check_error(clEnqueueNDRangeKernel(gpu.q
                                        , gpu.kernels["probs_1d"]
                                        , 1
@@ -77,6 +109,7 @@ namespace Dens {
                                        , NULL)
                 , "clEnqueueNDRangeKernel");
       check_error(clFlush(gpu.q), "clFlush");
+      check_error(clFinish(gpu.q), "clFinish");
     }
     // retrieve probability densities from device
     std::vector<float> densities(n_rows);
@@ -133,7 +166,7 @@ namespace Dens {
     for (Tools::OCL::GPUElement& gpu: gpus) {
       Tools::OCL::setup_gpu(gpu
                           , kernel_src
-                          , {"probs_1d"}
+                          , {"probs_1d", "initialize_zero"}
                           , wgsize);
       Tools::OCL::create_buffer(gpu
                               , "sorted_coords"
@@ -146,15 +179,14 @@ namespace Dens {
       Tools::OCL::create_buffer(gpu
                               , "P_partial"
                               , sizeof(float) * n_wg
-                              , CL_MEM_READ_WRITE | CL_MEM_HOST_NO_ACCESS);
+                              , CL_MEM_READ_WRITE);
     }
     // compute local densities on GPUs
     unsigned int i, j, thread_id;
     unsigned int n_selected_cols = selected_cols.size();
     std::vector<std::vector<float>> densities(selected_cols.size());
-    std::vector<float> sorted_coords;
     #pragma omp parallel for default(none)\
-                             private(i,j,thread_id,sorted_coords)\
+                             private(i,j,thread_id)\
                              firstprivate(n_selected_cols,n_rows,\
                                           n_cols,n_wg,wgsize)\
                              shared(coords,selected_cols,gpus,\
@@ -162,17 +194,11 @@ namespace Dens {
                              num_threads(n_gpus)\
                              schedule(dynamic,1)
     for (j=0; j < n_selected_cols; ++j) {
-      sorted_coords.resize(n_rows);
-      for (i=0; i < n_rows; ++i) {
-        sorted_coords[i] = coords[j*n_rows+i];
-      }
-      std::sort(sorted_coords.begin(), sorted_coords.end());
       thread_id = omp_get_thread_num();
       densities[j] = compute_densities(gpus[thread_id]
                                      , coords
                                      , n_rows
                                      , j
-                                     , sorted_coords
                                      , bandwidths[j]
                                      , n_wg
                                      , wgsize);

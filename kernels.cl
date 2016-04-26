@@ -16,17 +16,22 @@ float epanechnikov( float x
 }
 
 /* initialize buffer with zeros */
-__kernel void initialize_zero(__global float* buf) {
-  buf[get_global_id(0)] = 0.0f;
+__kernel void initialize_zero(__global float* buf
+                            , unsigned int n_rows) {
+  uint gid = get_global_id(0);
+  if (gid < n_rows) {
+    buf[gid] = 0.0f;
+  }
 }
 
 __kernel void
 probs_1d(__global const float* sorted_coords
+       , unsigned int n_rows
+       , __global float* P_partial
+       , __global float* P
        , float h_inv
        , float ref_scaled_neg
-       , __global float* P_partial
-       , unsigned int n
-       , __global float* P) {
+       , unsigned int i_ref) {
   __local float p_wg[WGSIZE];
   uint stride;
   uint gid = get_global_id(0);
@@ -34,7 +39,7 @@ probs_1d(__global const float* sorted_coords
   uint wid = get_group_id(0);
   uint n_wg = get_num_groups(0);
   // probability for every frame
-  if (gid < n) {
+  if (gid < n_rows) {
     p_wg[lid] = h_inv * epanechnikov(sorted_coords[gid]
                                    , ref_scaled_neg
                                    , h_inv);
@@ -58,7 +63,8 @@ probs_1d(__global const float* sorted_coords
     for (uint i=0; i < n_wg; ++i) {
       Pacc += P_partial[i];
     }
-    P[n] = Pacc / ((float) n_wg);
+    //TODO something's rotten in first run
+    P[i_ref] = Pacc / ((float) n_wg);
   }
 }
 

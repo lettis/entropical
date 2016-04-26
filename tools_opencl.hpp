@@ -104,6 +104,23 @@ namespace OCL {
   void
   cleanup_gpu(GPUElement& gpu);
 
+  /**
+   * Templated helper function to set kernel argument.
+   * Will exit and provide with error message if not successful.
+   *
+   * valid types:
+   *   string:       interpreted as name of a buffer
+   *   unsigned int: interpreted as scalar value
+   *   float:        interpreted as scalar value
+   */
+  template <typename T> void
+  set_kernel_arg(GPUElement& gpu
+               , std::string kernel
+               , unsigned int n_param
+               , T kernel_arg);
+
 } // end namespace Tools::OCL
 } // end namespace Tools
+
+#include "tools_opencl.hxx"
 

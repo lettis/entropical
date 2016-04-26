@@ -353,6 +353,7 @@ namespace OCL {
                             , std::string kernel
                             , unsigned int n_param
                             , std::string kernel_arg) {
+    std::cout << "setting: " << kernel << " " << n_param << ": " << kernel_arg << std::endl;
     check_error(clSetKernelArg(gpu.kernels[kernel]
                              , n_param
                              , sizeof(cl_mem)

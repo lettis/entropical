@@ -114,7 +114,7 @@ namespace OCL {
    *   float:        interpreted as scalar value
    */
   template <typename T> void
-  set_kernel_arg(GPUElement& gpu
+  set_kernel_arg(GPUElement* gpu
                , std::string kernel
                , unsigned int n_param
                , T kernel_arg);

@@ -349,15 +349,15 @@ namespace OCL {
 
 
   template <> void
-  set_kernel_arg<std::string>(GPUElement& gpu
+  set_kernel_arg<std::string>(GPUElement* gpu
                             , std::string kernel
                             , unsigned int n_param
                             , std::string kernel_arg) {
-    std::cout << "setting: " << kernel << " " << n_param << ": " << kernel_arg << std::endl;
-    check_error(clSetKernelArg(gpu.kernels[kernel]
+    std::cerr << "setting: " << kernel << " " << n_param << ": " << kernel_arg << std::endl;
+    check_error(clSetKernelArg(gpu->kernels[kernel]
                              , n_param
                              , sizeof(cl_mem)
-                             , (void*) &gpu.buffers[kernel_arg])
+                             , (void*) &gpu->buffers[kernel_arg])
               , "clSetKernelArg");
   }
 

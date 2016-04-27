@@ -28,6 +28,7 @@ namespace OCL {
     std::map<std::string, cl_mem> buffers;
   };
 
+  //TODO: move?
   /**
    * @returns Compute elements for available GPUs
    */
@@ -60,7 +61,7 @@ namespace OCL {
    * GPU and needed kernel resources (will be a multiple of 64).
    */
   unsigned int
-  max_wgsize(GPUElement& gpu
+  max_wgsize(GPUElement* gpu
            , unsigned int bytes_per_workitem);
 
   /**
@@ -84,7 +85,7 @@ namespace OCL {
    * Creates context, queue and compiled kernels for GPU.
    */
   void
-  setup_gpu(GPUElement& gpu
+  setup_gpu(GPUElement* gpu
           , std::string kernel_src
           , std::vector<std::string> used_kernels
           , unsigned int wgsize);
@@ -93,7 +94,7 @@ namespace OCL {
    * Creates buffer on given GPU device.
    */
   void
-  create_buffer(GPUElement& gpu
+  create_buffer(GPUElement* gpu
               , std::string bname
               , std::size_t bsize
               , cl_mem_flags bflags);
@@ -102,7 +103,7 @@ namespace OCL {
    * Release OpenCL resources for given GPU.
    */
   void
-  cleanup_gpu(GPUElement& gpu);
+  cleanup_gpu(GPUElement* gpu);
 
   /**
    * Templated helper function to set kernel argument.

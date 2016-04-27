@@ -8,7 +8,7 @@
 namespace Dens {
 
   std::vector<float>
-  compute_densities(Tools::OCL::GPUElement& gpu
+  compute_densities(Tools::OCL::GPUElement* gpu
                   , float* coords
                   , std::size_t n_rows
                   , std::size_t i_col
@@ -24,8 +24,8 @@ namespace Dens {
     }
     std::sort(sorted_coords.begin(), sorted_coords.end());
     // copy coords of given column to device
-    check_error(clEnqueueWriteBuffer(gpu.q
-                                   , gpu.buffers["sorted_coords"]
+    check_error(clEnqueueWriteBuffer(gpu->q
+                                   , gpu->buffers["sorted_coords"]
                                    , CL_TRUE
                                    , 0
                                    , sizeof(float) * n_rows
@@ -34,15 +34,15 @@ namespace Dens {
                                    , NULL
                                    , NULL)
               , "clEnqueueWriteBuffer");
-    check_error(clFlush(gpu.q), "clFlush");
+    check_error(clFlush(gpu->q), "clFlush");
 
     std::size_t global_worksize = n_wg * wgsize;
     std::size_t local_worksize = wgsize;
 
-    Tools::OCL::set_kernel_arg(&gpu, "initialize_zero", 0, std::string("P"));
-    Tools::OCL::set_kernel_arg(&gpu, "initialize_zero", 1, (unsigned int) n_rows);
-    check_error(clEnqueueNDRangeKernel(gpu.q
-                                     , gpu.kernels["initialize_zero"]
+    Tools::OCL::set_kernel_arg(gpu, "initialize_zero", 0, std::string("P"));
+    Tools::OCL::set_kernel_arg(gpu, "initialize_zero", 1, (unsigned int) n_rows);
+    check_error(clEnqueueNDRangeKernel(gpu->q
+                                     , gpu->kernels["initialize_zero"]
                                      , 1
                                      , NULL
                                      , &global_worksize
@@ -51,25 +51,25 @@ namespace Dens {
                                      , NULL
                                      , NULL)
               , "clEnqueueNDRangeKernel");
-    check_error(clFlush(gpu.q), "clFlush");
+    check_error(clFlush(gpu->q), "clFlush");
 
     // run kernel-loop over all frames
     for (unsigned int i=0; i < n_rows; ++i) {
 //      unsigned int n_wg_tmp = n_wg;
-//      Tools::OCL::set_kernel_arg<std::string>(&gpu, "initialize_zero", 0, std::string("P_partial"));
-//      Tools::OCL::set_kernel_arg(&gpu, "initialize_zero", 1, (unsigned int) n_wg);
-//      check_error(clSetKernelArg(gpu.kernels["initialize_zero"]
+//      Tools::OCL::set_kernel_arg<std::string>(gpu, "initialize_zero", 0, std::string("P_partial"));
+//      Tools::OCL::set_kernel_arg(gpu, "initialize_zero", 1, (unsigned int) n_wg);
+//      check_error(clSetKernelArg(gpu->kernels["initialize_zero"]
 //                               , 0
 //                               , sizeof(cl_mem)
-//                               , (void*) &gpu.buffers["P_partial"])
+//                               , (void*) &(gpu->buffers["P_partial"]))
 //                , "clSetKernelArg");
-//      check_error(clSetKernelArg(gpu.kernels["initialize_zero"]
+//      check_error(clSetKernelArg(gpu->kernels["initialize_zero"]
 //                               , 1
 //                               , sizeof(unsigned int)
 //                               , &n_wg_tmp)
 //                , "clSetKernelArg");
-      check_error(clEnqueueNDRangeKernel(gpu.q
-                                       , gpu.kernels["initialize_zero"]
+      check_error(clEnqueueNDRangeKernel(gpu->q
+                                       , gpu->kernels["initialize_zero"]
                                        , 1
                                        , NULL
                                        , &global_worksize
@@ -78,19 +78,19 @@ namespace Dens {
                                        , NULL
                                        , NULL)
                 , "clEnqueueNDRangeKernel");
-      check_error(clFlush(gpu.q), "clFlush");
-//      check_error(clFinish(gpu.q), "clFinish");
+      check_error(clFlush(gpu->q), "clFlush");
+//      check_error(clFinish(gpu->q), "clFinish");
 //
 //      float ref_scaled_neg = -1.0f * coords[i_col*n_rows + i] * h_inv;
-//      Tools::OCL::set_kernel_arg(&gpu, "probs_1d", 0, std::string("sorted_coords"));
-//      Tools::OCL::set_kernel_arg(&gpu, "probs_1d", 1, (unsigned int) n_rows);
-//      Tools::OCL::set_kernel_arg(&gpu, "probs_1d", 2, std::string("P_partial"));
-//      Tools::OCL::set_kernel_arg(&gpu, "probs_1d", 3, std::string("P"));
-//      Tools::OCL::set_kernel_arg(&gpu, "probs_1d", 4, h_inv);
-//      Tools::OCL::set_kernel_arg(&gpu, "probs_1d", 5, ref_scaled_neg);
-//      Tools::OCL::set_kernel_arg(&gpu, "probs_1d", 6, i);
-//      check_error(clEnqueueNDRangeKernel(gpu.q
-//                                       , gpu.kernels["probs_1d"]
+//      Tools::OCL::set_kernel_arg(gpu, "probs_1d", 0, std::string("sorted_coords"));
+//      Tools::OCL::set_kernel_arg(gpu, "probs_1d", 1, (unsigned int) n_rows);
+//      Tools::OCL::set_kernel_arg(gpu, "probs_1d", 2, std::string("P_partial"));
+//      Tools::OCL::set_kernel_arg(gpu, "probs_1d", 3, std::string("P"));
+//      Tools::OCL::set_kernel_arg(gpu, "probs_1d", 4, h_inv);
+//      Tools::OCL::set_kernel_arg(gpu, "probs_1d", 5, ref_scaled_neg);
+//      Tools::OCL::set_kernel_arg(gpu, "probs_1d", 6, i);
+//      check_error(clEnqueueNDRangeKernel(gpu->q
+//                                       , gpu->kernels["probs_1d"]
 //                                       , 1
 //                                       , NULL
 //                                       , &global_worksize
@@ -99,13 +99,13 @@ namespace Dens {
 //                                       , NULL
 //                                       , NULL)
 //                , "clEnqueueNDRangeKernel");
-//      check_error(clFlush(gpu.q), "clFlush");
-//      check_error(clFinish(gpu.q), "clFinish");
+//      check_error(clFlush(gpu->q), "clFlush");
+//      check_error(clFinish(gpu->q), "clFinish");
     }
     // retrieve probability densities from device
     std::vector<float> densities(n_rows);
-    check_error(clEnqueueReadBuffer(gpu.q
-                                  , gpu.buffers["P"]
+    check_error(clEnqueueReadBuffer(gpu->q
+                                  , gpu->buffers["P"]
                                   , CL_TRUE
                                   , 0
                                   , sizeof(float) * n_rows
@@ -150,24 +150,24 @@ namespace Dens {
     }
     // determine workgroup size and no. of workgroups from
     // available device memory and data size
-    unsigned int wgsize = Tools::OCL::max_wgsize(gpus[0], sizeof(float));
+    unsigned int wgsize = Tools::OCL::max_wgsize(&gpus[0], sizeof(float));
     unsigned int n_wg = (unsigned int) std::ceil(n_rows / ((float) wgsize));
     //TODO embed kernel source in header
     std::string kernel_src = Tools::OCL::load_kernel_source("kernels.cl");
-    for (Tools::OCL::GPUElement& gpu: gpus) {
-      Tools::OCL::setup_gpu(gpu
+    for (unsigned int i=0; i < n_gpus; ++i) {
+      Tools::OCL::setup_gpu(&gpus[i]
                           , kernel_src
                           , {"probs_1d", "initialize_zero"}
                           , wgsize);
-      Tools::OCL::create_buffer(gpu
+      Tools::OCL::create_buffer(&gpus[i]
                               , "sorted_coords"
                               , sizeof(float) * n_wg * wgsize
                               , CL_MEM_READ_ONLY);
-      Tools::OCL::create_buffer(gpu
+      Tools::OCL::create_buffer(&gpus[i]
                               , "P"
                               , sizeof(float) * n_rows
                               , CL_MEM_WRITE_ONLY);
-      Tools::OCL::create_buffer(gpu
+      Tools::OCL::create_buffer(&gpus[i]
                               , "P_partial"
                               , sizeof(float) * n_wg
                               , CL_MEM_READ_WRITE);
@@ -186,7 +186,7 @@ namespace Dens {
                              schedule(dynamic,1)
     for (j=0; j < n_selected_cols; ++j) {
       thread_id = omp_get_thread_num();
-      densities[j] = compute_densities(gpus[thread_id]
+      densities[j] = compute_densities(&gpus[thread_id]
                                      , coords
                                      , n_rows
                                      , j

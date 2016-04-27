@@ -194,32 +194,32 @@ namespace OCL {
   }
 
   unsigned int
-  max_wgsize(GPUElement& gpu
+  max_wgsize(GPUElement* gpu
            , unsigned int bytes_per_workitem) {
     cl_ulong max_local_mem;
     std::size_t gpu_max_wgsize;
     std::size_t psize;
     // get max. local memory
-    check_error(clGetDeviceInfo(gpu.i_dev
+    check_error(clGetDeviceInfo(gpu->i_dev
                               , CL_DEVICE_LOCAL_MEM_SIZE
                               , 0
                               , NULL
                               , &psize)
               , "clGetDeviceInfo");
-    check_error(clGetDeviceInfo(gpu.i_dev
+    check_error(clGetDeviceInfo(gpu->i_dev
                               , CL_DEVICE_LOCAL_MEM_SIZE
                               , psize
                               , &max_local_mem
                               , NULL)
               , "clGetDeviceInfo");
     // get max. work group size (1D)
-    check_error(clGetDeviceInfo(gpu.i_dev
+    check_error(clGetDeviceInfo(gpu->i_dev
                               , CL_DEVICE_MAX_WORK_GROUP_SIZE
                               , 0
                               , NULL
                               , &psize)
               , "clGetDeviceInfo");
-    check_error(clGetDeviceInfo(gpu.i_dev
+    check_error(clGetDeviceInfo(gpu->i_dev
                               , CL_DEVICE_MAX_WORK_GROUP_SIZE
                               , psize
                               , &gpu_max_wgsize
@@ -257,7 +257,7 @@ namespace OCL {
   }
 
   void
-  setup_gpu(GPUElement& gpu
+  setup_gpu(GPUElement* gpu
           , std::string kernel_src
           , std::vector<std::string> used_kernels
           , unsigned int wgsize) {
@@ -269,36 +269,36 @@ namespace OCL {
                  + kernel_src;
     const char* src = kernel_src.c_str();
     // create context
-    gpu.ctx = clCreateContext(NULL
-                            , 1
-                            , &gpu.i_dev
-                            , &pfn_notify
-                            , NULL
-                            , &err);
+    gpu->ctx = clCreateContext(NULL
+                             , 1
+                             , &(gpu->i_dev)
+                             , &pfn_notify
+                             , NULL
+                             , &err);
     check_error(err, "clCreateContext");
     // command queue
-    gpu.q = clCreateCommandQueue(gpu.ctx
-                               , gpu.i_dev
-                               , 0
-                               , &err);
+    gpu->q = clCreateCommandQueue(gpu->ctx
+                                , gpu->i_dev
+                                , 0
+                                , &err);
     check_error(err, "clCreateCommandQueue");
     // create program
-    gpu.prog = clCreateProgramWithSource(gpu.ctx
-                                       , 1
-                                       , &src
-                                       , NULL
-                                       , &err);
+    gpu->prog = clCreateProgramWithSource(gpu->ctx
+                                        , 1
+                                        , &src
+                                        , NULL
+                                        , &err);
     check_error(err, "clCreateProgramWithSource");
     // compile kernels
-    if (clBuildProgram(gpu.prog
+    if (clBuildProgram(gpu->prog
                      , 1
-                     , &gpu.i_dev
+                     , &(gpu->i_dev)
                      , ""
                      , NULL
                      , NULL) != CL_SUCCESS) {
       char buffer[10240];
-      clGetProgramBuildInfo(gpu.prog
-                          , gpu.i_dev
+      clGetProgramBuildInfo(gpu->prog
+                          , gpu->i_dev
                           , CL_PROGRAM_BUILD_LOG
                           , sizeof(buffer)
                           , buffer
@@ -309,9 +309,9 @@ namespace OCL {
     }
     // create kernel objects
     auto create_kernel = [&](std::string kname) -> void {
-      gpu.kernels[kname] = clCreateKernel(gpu.prog
-                                        , kname.c_str()
-                                        , &err);
+      gpu->kernels[kname] = clCreateKernel(gpu->prog
+                                         , kname.c_str()
+                                         , &err);
       check_error(err, "clCreateKernel");
     };
     for (std::string kernel: used_kernels) {
@@ -320,31 +320,31 @@ namespace OCL {
   }
 
   void
-  create_buffer(GPUElement& gpu
+  create_buffer(GPUElement* gpu
               , std::string bname
               , std::size_t bsize
               , cl_mem_flags bflags) {
     int err;
-    gpu.buffers[bname] = clCreateBuffer(gpu.ctx
-                                      , bflags
-                                      , bsize
-                                      , NULL
-                                      , &err);
+    gpu->buffers[bname] = clCreateBuffer(gpu->ctx
+                                       , bflags
+                                       , bsize
+                                       , NULL
+                                       , &err);
     check_error(err, "clCreateBuffer");
   }
 
   void
-  cleanup_gpu(GPUElement& gpu) {
-    check_error(clFinish(gpu.q), "cleanup: clFinish");
-    for (auto& kv: gpu.buffers) {
+  cleanup_gpu(GPUElement* gpu) {
+    check_error(clFinish(gpu->q), "cleanup: clFinish");
+    for (auto& kv: gpu->buffers) {
       check_error(clReleaseMemObject(kv.second), "clReleaseMemObject");
     }
-    for (auto& kv: gpu.kernels) {
+    for (auto& kv: gpu->kernels) {
       check_error(clReleaseKernel(kv.second), "clReleaseKernel");
     }
-    check_error(clReleaseProgram(gpu.prog), "clReleaseProgram");
-    check_error(clReleaseCommandQueue(gpu.q), "clReleaseCommandQueue");
-    check_error(clReleaseContext(gpu.ctx), "clReleaseContext");
+    check_error(clReleaseProgram(gpu->prog), "clReleaseProgram");
+    check_error(clReleaseCommandQueue(gpu->q), "clReleaseCommandQueue");
+    check_error(clReleaseContext(gpu->ctx), "clReleaseContext");
   }
 
 

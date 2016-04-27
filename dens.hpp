@@ -12,7 +12,7 @@ namespace Dens {
    * Perform density computation on given GPU.
    */
   std::vector<float>
-  compute_densities(Tools::OCL::GPUElement& gpu
+  compute_densities(Tools::OCL::GPUElement* gpu
                   , float* coords
                   , std::size_t n_rows
                   , std::size_t i_col

@@ -17,13 +17,38 @@ namespace Dens {
                   , std::size_t wgsize) {
     using Tools::OCL::check_error;
     float h_inv = 1.0f / h;
+    // helper functions to run kernel
+    auto nq_range_offset = [&] (std::string kname
+                              , std::size_t offset
+                              , std::size_t range) {
+      check_error(clEnqueueNDRangeKernel(gpu->q
+                                       , gpu->kernels[kname]
+                                       , 1
+                                       , &offset
+                                       , &range
+                                       , &wgsize
+                                       , 0
+                                       , NULL
+                                       , NULL)
+                , "clEnqueueNDRangeKernel");
+    };
+    auto nq_task = [&] (std::string kname) -> void {
+      check_error(clEnqueueTask(gpu->q
+                              , gpu->kernels[kname]
+                              , 0
+                              , NULL
+                              , NULL)
+                , "clEnqueueTask");
+    };
     // pre-sort coordinates
     std::vector<float> sorted_coords(n_rows);
     for (std::size_t i=0; i < n_rows; ++i) {
       sorted_coords[i] = coords[i_col*n_rows + i];
     }
     std::sort(sorted_coords.begin(), sorted_coords.end());
-    // copy coords of given column to device
+    // limits for box-assisted pruning
+    std::vector<float> boxlimits = Tools::boxlimits(sorted_coords, wgsize);
+    // copy (sorted) coords of given column to device
     check_error(clEnqueueWriteBuffer(gpu->q
                                    , gpu->buffers["sorted_coords"]
                                    , CL_TRUE
@@ -35,72 +60,60 @@ namespace Dens {
                                    , NULL)
               , "clEnqueueWriteBuffer");
     check_error(clFlush(gpu->q), "clFlush");
-
-    std::size_t global_worksize = n_wg * wgsize;
-    std::size_t local_worksize = wgsize;
-
-    Tools::OCL::set_kernel_arg(gpu, "initialize_zero", 0, std::string("P"));
-    Tools::OCL::set_kernel_arg(gpu, "initialize_zero", 1, (unsigned int) n_rows);
-    check_error(clEnqueueNDRangeKernel(gpu->q
-                                     , gpu->kernels["initialize_zero"]
-                                     , 1
-                                     , NULL
-                                     , &global_worksize
-                                     , &local_worksize
-                                     , 0
-                                     , NULL
-                                     , NULL)
-              , "clEnqueueNDRangeKernel");
-    check_error(clFlush(gpu->q), "clFlush");
-
     // run kernel-loop over all frames
+    Tools::OCL::set_kernel_buf_arg(gpu
+                                 , "partial_probs_1d"
+                                 , 0
+                                 , "sorted_coords");
+    Tools::OCL::set_kernel_scalar_arg(gpu
+                                    , "partial_probs_1d"
+                                    , 1
+                                    , (unsigned int) n_rows);
+    Tools::OCL::set_kernel_buf_arg(gpu
+                                 , "partial_probs_1d"
+                                 , 2
+                                 , "P_partial");
+    Tools::OCL::set_kernel_scalar_arg(gpu
+                                    , "partial_probs_1d"
+                                    , 3
+                                    , h_inv);
+    Tools::OCL::set_kernel_buf_arg(gpu
+                                 , "sum_partial_probs_1d"
+                                 , 0
+                                 , "P_partial");
+    Tools::OCL::set_kernel_buf_arg(gpu
+                                 , "sum_partial_probs_1d"
+                                 , 1
+                                 , "P");
     for (unsigned int i=0; i < n_rows; ++i) {
-//      unsigned int n_wg_tmp = n_wg;
-//      Tools::OCL::set_kernel_arg<std::string>(gpu, "initialize_zero", 0, std::string("P_partial"));
-//      Tools::OCL::set_kernel_arg(gpu, "initialize_zero", 1, (unsigned int) n_wg);
-//      check_error(clSetKernelArg(gpu->kernels["initialize_zero"]
-//                               , 0
-//                               , sizeof(cl_mem)
-//                               , (void*) &(gpu->buffers["P_partial"]))
-//                , "clSetKernelArg");
-//      check_error(clSetKernelArg(gpu->kernels["initialize_zero"]
-//                               , 1
-//                               , sizeof(unsigned int)
-//                               , &n_wg_tmp)
-//                , "clSetKernelArg");
-      check_error(clEnqueueNDRangeKernel(gpu->q
-                                       , gpu->kernels["initialize_zero"]
-                                       , 1
-                                       , NULL
-                                       , &global_worksize
-                                       , &local_worksize
-                                       , 0
-                                       , NULL
-                                       , NULL)
-                , "clEnqueueNDRangeKernel");
+      // prune full range to limit of bandwidth
+      float ref_val = coords[i_col*n_rows + i];
+      auto min_max = Tools::min_max_box(boxlimits, ref_val, h);
+      std::size_t mm_range = min_max.second - min_max.first + 1;
+      // compute partials in workgroups
+      float ref_scaled_neg = -1.0f * h_inv * ref_val;
+      Tools::OCL::set_kernel_scalar_arg(gpu
+                                      , "partial_probs_1d"
+                                      , 4
+                                      , ref_scaled_neg);
+      nq_range_offset("partial_probs_1d"
+                    , min_max.first * wgsize
+                    , mm_range * wgsize);
+      // reduce workgroup results
+      Tools::OCL::set_kernel_scalar_arg(gpu
+                                      , "sum_partial_probs_1d"
+                                      , 2
+                                      , i);
+      Tools::OCL::set_kernel_scalar_arg(gpu
+                                      , "sum_partial_probs_1d"
+                                      , 3
+                                      , (unsigned int) mm_range);
+      Tools::OCL::set_kernel_scalar_arg(gpu
+                                      , "sum_partial_probs_1d"
+                                      , 4
+                                      , (unsigned int) n_wg);
+      nq_task("sum_partial_probs_1d");
       check_error(clFlush(gpu->q), "clFlush");
-//      check_error(clFinish(gpu->q), "clFinish");
-//
-//      float ref_scaled_neg = -1.0f * coords[i_col*n_rows + i] * h_inv;
-//      Tools::OCL::set_kernel_arg(gpu, "probs_1d", 0, std::string("sorted_coords"));
-//      Tools::OCL::set_kernel_arg(gpu, "probs_1d", 1, (unsigned int) n_rows);
-//      Tools::OCL::set_kernel_arg(gpu, "probs_1d", 2, std::string("P_partial"));
-//      Tools::OCL::set_kernel_arg(gpu, "probs_1d", 3, std::string("P"));
-//      Tools::OCL::set_kernel_arg(gpu, "probs_1d", 4, h_inv);
-//      Tools::OCL::set_kernel_arg(gpu, "probs_1d", 5, ref_scaled_neg);
-//      Tools::OCL::set_kernel_arg(gpu, "probs_1d", 6, i);
-//      check_error(clEnqueueNDRangeKernel(gpu->q
-//                                       , gpu->kernels["probs_1d"]
-//                                       , 1
-//                                       , NULL
-//                                       , &global_worksize
-//                                       , &local_worksize
-//                                       , 0
-//                                       , NULL
-//                                       , NULL)
-//                , "clEnqueueNDRangeKernel");
-//      check_error(clFlush(gpu->q), "clFlush");
-//      check_error(clFinish(gpu->q), "clFinish");
     }
     // retrieve probability densities from device
     std::vector<float> densities(n_rows);
@@ -114,6 +127,7 @@ namespace Dens {
                                   , NULL
                                   , NULL)
               , "clEnqueueReadBuffer");
+    //TODO normalize densities!
     return densities;
   }
 
@@ -157,7 +171,9 @@ namespace Dens {
     for (unsigned int i=0; i < n_gpus; ++i) {
       Tools::OCL::setup_gpu(&gpus[i]
                           , kernel_src
-                          , {"probs_1d", "initialize_zero"}
+                          , {"partial_probs_1d"
+                           , "initialize_zero"
+                           , "sum_partial_probs_1d"}
                           , wgsize);
       Tools::OCL::create_buffer(&gpus[i]
                               , "sorted_coords"
@@ -167,6 +183,7 @@ namespace Dens {
                               , "P"
                               , sizeof(float) * n_rows
                               , CL_MEM_WRITE_ONLY);
+      // partial buffers for concurrent kernels
       Tools::OCL::create_buffer(&gpus[i]
                               , "P_partial"
                               , sizeof(float) * n_wg
@@ -194,7 +211,6 @@ namespace Dens {
                                      , n_wg
                                      , wgsize);
     }
-//TODO normalized densities!
     // output: densities
     for (i=0; i < n_rows; ++i) {
       for (j=0; j < selected_cols.size(); ++j) {

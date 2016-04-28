@@ -7,6 +7,7 @@
 #include <fstream>
 #include <string>
 #include <vector>
+#include <utility>
 
 // allocate memory (32 bit for SSE4_1, AVX)
 // TODO: define MEM_ALIGNMENT during cmake and
@@ -33,12 +34,34 @@ namespace Tools {
   template <typename NUM>
   std::vector<NUM>
   range(NUM from, NUM to, NUM step);
+
   /**
    * precise sum of floats by using Kahan summation
    */
   template <typename FLOAT>
   FLOAT
   kahan_sum(const std::vector<FLOAT>& xs);
+
+  /**
+   * @returns -1.0 if negative, 1.0 if positive or zero
+   */
+  template <typename FLOAT>
+  FLOAT
+  sgn(FLOAT val);
+
+  /**
+   * return values of first frame per box
+   */
+  template <typename NUM>
+  std::vector<NUM>
+  boxlimits(const std::vector<NUM>& xs
+          , std::size_t boxsize);
+
+  template <typename NUM>
+  std::pair<std::size_t, std::size_t>
+  min_max_box(const std::vector<NUM>& limits
+            , NUM val
+            , NUM bandwidth);
 
   namespace String {
     /**

@@ -25,13 +25,11 @@ __kernel void initialize_zero(__global float* buf
 }
 
 __kernel void
-probs_1d(__global const float* sorted_coords
-       , unsigned int n_rows
-       , __global float* P_partial
-       , __global float* P
-       , float h_inv
-       , float ref_scaled_neg
-       , unsigned int i_ref) {
+partial_probs_1d(__global const float* sorted_coords
+               , unsigned int n_rows
+               , __global float* P_partial
+               , float h_inv
+               , float ref_scaled_neg) {
   __local float p_wg[WGSIZE];
   uint stride;
   uint gid = get_global_id(0);
@@ -53,27 +51,24 @@ probs_1d(__global const float* sorted_coords
       p_wg[lid] += p_wg[lid+stride];
     }
   }
-  // reduce globally
+  barrier(CLK_LOCAL_MEM_FENCE);
   if (lid == 0) {
     P_partial[wid] = p_wg[0] / ((float) WGSIZE);
   }
-  barrier(CLK_GLOBAL_MEM_FENCE);
-  if (gid == 0) {
-    float Pacc = 0.0f;
-    for (uint i=0; i < n_wg; ++i) {
-      Pacc += P_partial[i];
-    }
-    //TODO something's rotten in first run
-    P[i_ref] = Pacc / ((float) n_wg);
-  }
 }
-
 
 __kernel void
-normalize_probs(__global float* P) {
-  //TODO
+sum_partial_probs_1d(__global const float* P_partial
+                   , __global float* P
+                   , unsigned int i_ref
+                   , unsigned int n_partials
+                   , unsigned int n_wg) {
+  float Pacc = 0.0f;
+  for (uint i=0; i < n_partials; ++i) {
+    Pacc += P_partial[i];
+  }
+  P[i_ref] = Pacc / ((float) n_wg);
 }
-
 
 
 

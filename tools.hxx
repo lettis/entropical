@@ -27,6 +27,62 @@ namespace Tools {
     return sum_kahan(acc);
   }
 
+  template <typename FLOAT>
+  FLOAT
+  sgn(FLOAT val) {
+    if (val < 0.0) {
+      return -1.0;
+    } else {
+      return  1.0;
+    }
+  }
+
+  template <typename NUM>
+  std::vector<NUM>
+  boxlimits(const std::vector<NUM>& xs
+          , std::size_t boxsize) {
+    std::size_t n_xs = xs.size();
+    std::size_t n_boxes = n_xs / boxsize;
+    if (n_boxes * boxsize < n_xs) {
+      ++n_boxes;
+    }
+    std::vector<NUM> boxlimits(n_boxes);
+    for (std::size_t i=0; i < n_boxes; ++i) {
+      boxlimits[i] = xs[i*boxsize];
+    }
+    return boxlimits;
+  }
+
+  template <typename NUM>
+  std::pair<std::size_t, std::size_t>
+  min_max_box(const std::vector<NUM>& limits
+            , NUM val
+            , NUM bandwidth) {
+    std::size_t n_boxes = limits.size();
+    if (n_boxes == 0) {
+      return {0,0};
+    } else {
+      std::size_t i_min = n_boxes - 1;
+      std::size_t i_max = 0;
+      NUM lbound = val - bandwidth;
+      NUM ubound = val + bandwidth;
+      for (std::size_t i=1; i < n_boxes; ++i) {
+        if (lbound < limits[i]) {
+          i_min = i-1;
+          break;
+        }
+      }
+      for (std::size_t i=n_boxes; 0 < i; --i) {
+        if (limits[i-1] < ubound) {
+          i_max = i-1;
+          break;
+        }
+      }
+      return {i_min, i_max};
+    }
+  }
+
+
 namespace IO {
   template <typename NUM>
   std::tuple<NUM*, std::size_t, std::size_t>

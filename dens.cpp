@@ -8,13 +8,13 @@
 namespace Dens {
 
   std::vector<float>
-  compute_densities(Tools::OCL::GPUElement* gpu
-                  , float* coords
-                  , std::size_t n_rows
-                  , std::size_t i_col
-                  , float h
-                  , std::size_t n_wg
-                  , std::size_t wgsize) {
+  compute_densities_1d(Tools::OCL::GPUElement* gpu
+                     , const float* coords
+                     , std::size_t n_rows
+                     , std::size_t i_col
+                     , float h
+                     , std::size_t n_wg
+                     , std::size_t wgsize) {
     using Tools::OCL::check_error;
     float h_inv = 1.0f / h;
     // helper functions to run kernel
@@ -127,34 +127,20 @@ namespace Dens {
                                   , NULL
                                   , NULL)
               , "clEnqueueReadBuffer");
-    //TODO normalize densities!
+    float sum = Tools::kahan_sum(densities);
+    for (float& d: densities) {
+      d /= sum;
+    }
     return densities;
   }
 
-  void
-  main(boost::program_options::variables_map args) {
-    Tools::IO::set_out(args["output"].as<std::string>());
-    std::string fname_input = args["input"].as<std::string>();
-    // read data
-    std::vector<std::size_t> selected_cols;
-    float* coords;
-    std::size_t n_rows;
-    std::size_t n_cols;
-    std::tie(selected_cols, coords, n_rows, n_cols)
-      = Tools::IO::selected_coords<float>(fname_input
-                                        , args["columns"].as<std::string>());
-    std::vector<float> bandwidths;
-    using Tools::String::split;
-    for (std::string h: split(args["bandwidths"].as<std::string>()
-                            , ' '
-                            , true)) {
-      bandwidths.push_back(std::stof(h));
-    }
-    if (bandwidths.size() != selected_cols.size()) {
-      std::cerr << "error: number of given bandwidth values does not match"
-                         " the number of selected columns!" << std::endl;
-      exit(EXIT_FAILURE);
-    }
+
+  std::vector<std::vector<float>>
+  compute_densities(std::vector<std::size_t> selected_cols
+                  , const float* coords
+                  , std::size_t n_rows
+                  , std::vector<float> bandwidths) {
+    std::vector<std::vector<float>> densities(selected_cols.size());
     // setup OpenCL environment
     std::vector<Tools::OCL::GPUElement> gpus = Tools::OCL::gpus();
     std::size_t n_gpus = gpus.size();
@@ -189,31 +175,66 @@ namespace Dens {
                               , sizeof(float) * n_wg
                               , CL_MEM_READ_WRITE);
     }
-    // compute local densities on GPUs
-    unsigned int i, j, thread_id;
+    // compute densities on available GPUs
+    unsigned int j, thread_id;
     unsigned int n_selected_cols = selected_cols.size();
-    std::vector<std::vector<float>> densities(selected_cols.size());
     #pragma omp parallel for default(none)\
-                             private(i,j,thread_id)\
+                             private(j,thread_id)\
                              firstprivate(n_selected_cols,n_rows,\
-                                          n_cols,n_wg,wgsize)\
+                                          n_wg,wgsize)\
                              shared(coords,selected_cols,gpus,\
                                     densities,bandwidths)\
                              num_threads(n_gpus)\
                              schedule(dynamic,1)
     for (j=0; j < n_selected_cols; ++j) {
       thread_id = omp_get_thread_num();
-      densities[j] = compute_densities(&gpus[thread_id]
-                                     , coords
-                                     , n_rows
-                                     , j
-                                     , bandwidths[j]
-                                     , n_wg
-                                     , wgsize);
+      densities[j] = compute_densities_1d(&gpus[thread_id]
+                                        , coords
+                                        , n_rows
+                                        , j
+                                        , bandwidths[j]
+                                        , n_wg
+                                        , wgsize);
     }
+    return densities;
+  }
+
+
+  void
+  main(boost::program_options::variables_map args) {
+    Tools::IO::set_out(args["output"].as<std::string>());
+    std::string fname_input = args["input"].as<std::string>();
+    // read data
+    std::vector<std::size_t> selected_cols;
+    float* coords;
+    std::size_t n_rows;
+    std::size_t n_cols;
+    std::tie(selected_cols, coords, n_rows, n_cols)
+      = Tools::IO::selected_coords<float>(fname_input
+                                        , args["columns"].as<std::string>());
+    std::vector<float> bandwidths;
+    using Tools::String::split;
+    for (std::string h: split(args["bandwidths"].as<std::string>()
+                            , ' '
+                            , true)) {
+      bandwidths.push_back(std::stof(h));
+    }
+    if (bandwidths.size() != selected_cols.size()) {
+      std::cerr << "error: number of given bandwidth values does not match"
+                         " the number of selected columns!" << std::endl;
+      exit(EXIT_FAILURE);
+    }
+
+    // run computation
+    std::vector<std::vector<float>> densities;
+    densities = compute_densities(selected_cols
+                                , coords
+                                , n_rows
+                                , bandwidths);
+
     // output: densities
-    for (i=0; i < n_rows; ++i) {
-      for (j=0; j < selected_cols.size(); ++j) {
+    for (std::size_t i=0; i < n_rows; ++i) {
+      for (std::size_t j=0; j < selected_cols.size(); ++j) {
         Tools::IO::out() << " " << densities[j][i];
       }
       Tools::IO::out() << "\n";

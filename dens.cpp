@@ -151,7 +151,7 @@ namespace Dens {
     }
     // determine workgroup size and no. of workgroups from
     // available device memory and data size
-    unsigned int wgsize = Tools::OCL::max_wgsize(&gpus[0], sizeof(float));
+    unsigned int wgsize = Tools::OCL::max_wgsize(&gpus[0], sizeof(float)) / 4;
     unsigned int n_wg = Tools::min_multiplicator(n_rows, wgsize);
     unsigned int partial_size = Tools::min_multiplicator(n_wg, wgsize) * wgsize;
     //TODO embed kernel source in header

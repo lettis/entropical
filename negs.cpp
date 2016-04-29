@@ -37,7 +37,7 @@ namespace Negs {
                                       , coords
                                       , n_rows
                                       , bandwidths);
-    // compute negentropies
+    // compute partial negentropies
     std::size_t n_sel_cols = selected_cols.size();
     std::size_t i, j;
     #pragma omp parallel for default(none)\
@@ -54,8 +54,9 @@ namespace Negs {
     }
     // output: negentropies
     for (std::size_t j=0; j < n_sel_cols; ++j) {
-      Tools::IO::out() << -1.0 * Tools::kahan_sum(densities[j]) << std::endl;
+      Tools::IO::out() << " " << -1.0 * Tools::kahan_sum(densities[j]);
     }
+    Tools::IO::out() << std::endl;
     // cleanup
     Tools::IO::free_coords(coords);
   }

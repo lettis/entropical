@@ -191,6 +191,9 @@ namespace IO {
     std::size_t n_cols;
     std::tie(coords, n_rows, n_cols) =
       Tools::IO::read_coords<NUM>(filename, 'C', selected_cols_base0);
+    if (selected_cols.size() == 0) {
+      selected_cols = Tools::range<std::size_t>(1, n_cols+1, 1);
+    }
     return std::make_tuple(selected_cols, coords, n_rows, n_cols);
   }
 

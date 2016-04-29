@@ -14,6 +14,7 @@ namespace IM {
     if (is_mode("help-transs")
      || is_mode("help-mi")
      || is_mode("help-dens")
+     || is_mode("help-negs")
      || is_mode("help-amise")
      || is_mode("help-hestimate")) {
       std::cout << help.at(helpmode) << std::endl;

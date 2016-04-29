@@ -63,6 +63,9 @@ namespace Tools {
             , NUM val
             , NUM bandwidth);
 
+  /**
+   * @returns minimal multiplicator fulfilling a <= min_multiplicator(a,b) * b
+   */
   unsigned int
   min_multiplicator(unsigned int orig
                   , unsigned int mult);

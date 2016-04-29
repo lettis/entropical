@@ -29,7 +29,17 @@ namespace IM {
     }
 
   , {"help-negs",
-      ""}
+      "negs - compute negentropies for given data columns\n"
+      "\n"
+      "options:\n"
+      "  -i [ --input ]      input file (required!)\n"
+      "  -H [ --bandwidths ] bandwidths for univariate density estimation\n"
+      "                      as space separated values. (required!)\n"
+      "  -o [ --output ]     output file (default: stdout)\n"
+      "  -C [ --columns ]    column selection, space separated indices;\n"
+      "                      e.g. -C \"1 3 5\" for first, third and fifth columns\n"
+      "                      (default: read all)\n"
+    }
 
   , {"help-amise",
       ""}

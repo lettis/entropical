@@ -57,6 +57,7 @@ partial_probs_1d(__global const float* sorted_coords
   }
 }
 
+/* single task version
 __kernel void
 sum_partial_probs_1d(__global const float* P_partial
                    , __global float* P
@@ -69,6 +70,46 @@ sum_partial_probs_1d(__global const float* P_partial
   }
   P[i_ref] = Pacc / ((float) n_wg);
 }
+*/
+
+/* parallel version */
+__kernel void
+sum_partial_probs_1d(__global float* P_partial
+                   , __global float* P
+                   , unsigned int i_ref
+                   , unsigned int n_partials
+                   , unsigned int n_wg) {
+  __local float p_wg[WGSIZE];
+  uint stride;
+  uint gid = get_global_id(0);
+  uint lid = get_local_id(0);
+  uint wid = get_group_id(0);
+  // store probs locally for reduction
+  if (gid < n_partials) {
+    p_wg[lid] = P_partial[gid];
+  } else {
+    p_wg[lid] = 0.0f;
+  }
+  // reduce
+  for (stride=WGSIZE/2; stride > 0; stride /= 2) {
+    barrier(CLK_LOCAL_MEM_FENCE);
+    if (lid < stride) {
+      p_wg[lid] += p_wg[lid+stride];
+    }
+  }
+  barrier(CLK_LOCAL_MEM_FENCE);
+  if (lid == 0) {
+    if (get_num_groups(0) > 1) {
+      // intermediate reduction result
+      P_partial[wid] = p_wg[0];
+    } else {
+      // end result
+      P[i_ref] = p_wg[0] / ((float) n_wg);
+    }
+  }
+}
+
+
 
 
 

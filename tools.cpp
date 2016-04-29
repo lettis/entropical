@@ -9,6 +9,12 @@
 
 namespace Tools {
 
+  unsigned int
+  min_multiplicator(unsigned int orig
+                  , unsigned int mult) {
+    return (unsigned int) std::ceil(orig / ((float) mult));
+  };
+
 namespace String {
 
   std::string

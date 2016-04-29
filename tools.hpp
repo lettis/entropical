@@ -63,6 +63,10 @@ namespace Tools {
             , NUM val
             , NUM bandwidth);
 
+  unsigned int
+  min_multiplicator(unsigned int orig
+                  , unsigned int mult);
+
   namespace String {
     /**
      * return last n characters of str.

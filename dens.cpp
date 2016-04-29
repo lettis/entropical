@@ -32,14 +32,6 @@ namespace Dens {
                                        , NULL)
                 , "clEnqueueNDRangeKernel");
     };
-    auto nq_task = [&] (std::string kname) -> void {
-      check_error(clEnqueueTask(gpu->q
-                              , gpu->kernels[kname]
-                              , 0
-                              , NULL
-                              , NULL)
-                , "clEnqueueTask");
-    };
     // pre-sort coordinates
     std::vector<float> sorted_coords(n_rows);
     for (std::size_t i=0; i < n_rows; ++i) {
@@ -90,6 +82,7 @@ namespace Dens {
       float ref_val = coords[i_col*n_rows + i];
       auto min_max = Tools::min_max_box(boxlimits, ref_val, h);
       std::size_t mm_range = min_max.second - min_max.first + 1;
+
       // compute partials in workgroups
       float ref_scaled_neg = -1.0f * h_inv * ref_val;
       Tools::OCL::set_kernel_scalar_arg(gpu
@@ -99,20 +92,28 @@ namespace Dens {
       nq_range_offset("partial_probs_1d"
                     , min_max.first * wgsize
                     , mm_range * wgsize);
-      // reduce workgroup results
+
+      // stagewise reduction of workgroup results
       Tools::OCL::set_kernel_scalar_arg(gpu
                                       , "sum_partial_probs_1d"
-                                      , 2
+                                      , 2 // i_ref
                                       , i);
       Tools::OCL::set_kernel_scalar_arg(gpu
                                       , "sum_partial_probs_1d"
-                                      , 3
+                                      , 3 // n_partials
                                       , (unsigned int) mm_range);
       Tools::OCL::set_kernel_scalar_arg(gpu
                                       , "sum_partial_probs_1d"
-                                      , 4
+                                      , 4 // n_wg
                                       , (unsigned int) n_wg);
-      nq_task("sum_partial_probs_1d");
+      unsigned int rng = Tools::min_multiplicator(mm_range, wgsize) * wgsize;
+      while (rng >= wgsize) {
+        nq_range_offset("sum_partial_probs_1d"
+                      , 0
+                      , rng);
+        rng /= wgsize;
+      }
+      // run queued kernels
       check_error(clFlush(gpu->q), "clFlush");
     }
     // retrieve probability densities from device
@@ -151,7 +152,8 @@ namespace Dens {
     // determine workgroup size and no. of workgroups from
     // available device memory and data size
     unsigned int wgsize = Tools::OCL::max_wgsize(&gpus[0], sizeof(float));
-    unsigned int n_wg = (unsigned int) std::ceil(n_rows / ((float) wgsize));
+    unsigned int n_wg = Tools::min_multiplicator(n_rows, wgsize);
+    unsigned int partial_size = Tools::min_multiplicator(n_wg, wgsize) * wgsize;
     //TODO embed kernel source in header
     std::string kernel_src = Tools::OCL::load_kernel_source("kernels.cl");
     for (unsigned int i=0; i < n_gpus; ++i) {
@@ -169,10 +171,9 @@ namespace Dens {
                               , "P"
                               , sizeof(float) * n_rows
                               , CL_MEM_WRITE_ONLY);
-      // partial buffers for concurrent kernels
       Tools::OCL::create_buffer(&gpus[i]
                               , "P_partial"
-                              , sizeof(float) * n_wg
+                              , sizeof(float) * partial_size
                               , CL_MEM_READ_WRITE);
     }
     // compute densities on available GPUs

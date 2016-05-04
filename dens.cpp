@@ -82,7 +82,6 @@ namespace Dens {
       float ref_val = coords[i_col*n_rows + i];
       auto min_max = Tools::min_max_box(boxlimits, ref_val, h);
       std::size_t mm_range = min_max.second - min_max.first + 1;
-
       // compute partials in workgroups
       float ref_scaled_neg = -1.0f * h_inv * ref_val;
       Tools::OCL::set_kernel_scalar_arg(gpu
@@ -102,12 +101,18 @@ namespace Dens {
                                       , "sum_partial_probs_1d"
                                       , 3 // n_partials
                                       , (unsigned int) mm_range);
+//TODO
+std::cout << mm_range << " " << wgsize << std::endl;
       Tools::OCL::set_kernel_scalar_arg(gpu
                                       , "sum_partial_probs_1d"
                                       , 4 // n_wg
                                       , (unsigned int) n_wg);
       unsigned int rng = Tools::min_multiplicator(mm_range, wgsize) * wgsize;
       while (rng >= wgsize) {
+        Tools::OCL::set_kernel_scalar_arg(gpu
+                                       , "sum_partial_probs_1d"
+                                       , 3
+                                       , rng);
         nq_range_offset("sum_partial_probs_1d"
                       , 0
                       , rng);
@@ -115,6 +120,7 @@ namespace Dens {
       }
       // run queued kernels
       check_error(clFlush(gpu->q), "clFlush");
+      check_error(clFinish(gpu->q), "clFinish");
     }
     // retrieve probability densities from device
     std::vector<float> densities(n_rows);
@@ -128,10 +134,11 @@ namespace Dens {
                                   , NULL
                                   , NULL)
               , "clEnqueueReadBuffer");
-    float sum = Tools::kahan_sum(densities);
-    for (float& d: densities) {
-      d /= sum;
-    }
+//TODO debug
+//    float sum = Tools::kahan_sum(densities);
+//    for (float& d: densities) {
+//      d /= sum;
+//    }
     return densities;
   }
 
@@ -151,7 +158,11 @@ namespace Dens {
     }
     // determine workgroup size and no. of workgroups from
     // available device memory and data size
-    unsigned int wgsize = Tools::OCL::max_wgsize(&gpus[0], sizeof(float)) / 4;
+
+//TODO: bug: density results depend on wgsize!!!  seems smaller == worse
+    unsigned int wgsize = Tools::OCL::max_wgsize(&gpus[0], sizeof(float)) / 8;
+//    unsigned int wgsize = Tools::OCL::max_wgsize(&gpus[0], sizeof(float));
+
     unsigned int n_wg = Tools::min_multiplicator(n_rows, wgsize);
     unsigned int partial_size = Tools::min_multiplicator(n_wg, wgsize) * wgsize;
     //TODO embed kernel source in header

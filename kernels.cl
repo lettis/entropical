@@ -16,13 +16,13 @@ float epanechnikov( float x
 }
 
 /* initialize buffer with zeros */
-__kernel void initialize_zero(__global float* buf
-                            , unsigned int n_rows) {
-  uint gid = get_global_id(0);
-  if (gid < n_rows) {
-    buf[gid] = 0.0f;
-  }
-}
+//__kernel void initialize_zero(__global float* buf
+//                            , unsigned int n_rows) {
+//  uint gid = get_global_id(0);
+//  if (gid < n_rows) {
+//    buf[gid] = 0.0f;
+//  }
+//}
 
 __kernel void
 partial_probs_1d(__global const float* sorted_coords

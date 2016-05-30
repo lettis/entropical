@@ -101,26 +101,24 @@ namespace Dens {
                                       , "sum_partial_probs_1d"
                                       , 3 // n_partials
                                       , (unsigned int) mm_range);
-//TODO
-std::cout << mm_range << " " << wgsize << std::endl;
       Tools::OCL::set_kernel_scalar_arg(gpu
                                       , "sum_partial_probs_1d"
                                       , 4 // n_wg
                                       , (unsigned int) n_wg);
       unsigned int rng = Tools::min_multiplicator(mm_range, wgsize) * wgsize;
       while (rng >= wgsize) {
+        // reduce on current stage
+        nq_range_offset("sum_partial_probs_1d"
+                      , 0
+                      , rng);
+        // next stage
+        rng /= wgsize;
         Tools::OCL::set_kernel_scalar_arg(gpu
                                        , "sum_partial_probs_1d"
                                        , 3
                                        , rng);
-        nq_range_offset("sum_partial_probs_1d"
-                      , 0
-                      , rng);
-        rng /= wgsize;
       }
-      // run queued kernels
       check_error(clFlush(gpu->q), "clFlush");
-      check_error(clFinish(gpu->q), "clFinish");
     }
     // retrieve probability densities from device
     std::vector<float> densities(n_rows);
@@ -134,11 +132,11 @@ std::cout << mm_range << " " << wgsize << std::endl;
                                   , NULL
                                   , NULL)
               , "clEnqueueReadBuffer");
-//TODO debug
-//    float sum = Tools::kahan_sum(densities);
-//    for (float& d: densities) {
-//      d /= sum;
-//    }
+    // normalize
+    float sum = Tools::kahan_sum(densities);
+    for (float& d: densities) {
+      d /= sum;
+    }
     return densities;
   }
 
@@ -158,11 +156,11 @@ std::cout << mm_range << " " << wgsize << std::endl;
     }
     // determine workgroup size and no. of workgroups from
     // available device memory and data size
-
-//TODO: bug: density results depend on wgsize!!!  seems smaller == worse
-    unsigned int wgsize = Tools::OCL::max_wgsize(&gpus[0], sizeof(float)) / 8;
-//    unsigned int wgsize = Tools::OCL::max_wgsize(&gpus[0], sizeof(float));
-
+    // (1/8 max(wgsize) has shown highest
+    //  performance on GeForce GTX 960)
+    unsigned int wgsize = std::max((unsigned int) 64
+                                 , Tools::OCL::max_wgsize(&gpus[0]
+                                                        , sizeof(float)) / 8);
     unsigned int n_wg = Tools::min_multiplicator(n_rows, wgsize);
     unsigned int partial_size = Tools::min_multiplicator(n_wg, wgsize) * wgsize;
     //TODO embed kernel source in header
@@ -171,7 +169,6 @@ std::cout << mm_range << " " << wgsize << std::endl;
       Tools::OCL::setup_gpu(&gpus[i]
                           , kernel_src
                           , {"partial_probs_1d"
-                           , "initialize_zero"
                            , "sum_partial_probs_1d"}
                           , wgsize);
       Tools::OCL::create_buffer(&gpus[i]

@@ -133,10 +133,10 @@ namespace Dens {
                                   , NULL)
               , "clEnqueueReadBuffer");
     // normalize
-    float sum = Tools::kahan_sum(densities);
-    for (float& d: densities) {
-      d /= sum;
-    }
+//    float sum = Tools::kahan_sum(densities);
+//    for (float& d: densities) {
+//      d /= sum;
+//    }
     return densities;
   }
 
@@ -158,9 +158,14 @@ namespace Dens {
     // available device memory and data size
     // (1/8 max(wgsize) has shown highest
     //  performance on GeForce GTX 960)
-    unsigned int wgsize = std::max((unsigned int) 64
-                                 , Tools::OCL::max_wgsize(&gpus[0]
-                                                        , sizeof(float)) / 8);
+//    unsigned int wgsize = std::max((unsigned int) 128
+//                                 , Tools::OCL::max_wgsize(&gpus[0]
+//                                                        , sizeof(float)) / 8);
+//
+//TODO: still errors when choosing smaller wgsize
+    unsigned int wgsize = 512;
+    std::cout << wgsize << std::endl;
+
     unsigned int n_wg = Tools::min_multiplicator(n_rows, wgsize);
     unsigned int partial_size = Tools::min_multiplicator(n_wg, wgsize) * wgsize;
     //TODO embed kernel source in header

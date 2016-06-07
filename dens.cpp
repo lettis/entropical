@@ -8,6 +8,67 @@
 
 namespace Dens {
 
+  void
+  stagewise_reduction(Tools::OCL::GPUElement* gpu
+                    , unsigned int i_ref
+                    , unsigned int n_partials
+                    , unsigned int n_wg
+                    , std::size_t wgsize) {
+    std::string partial_buf1 = "P_partial";
+    std::string partial_buf2 = "P_partial_reduct";
+    auto set_partial_bufs = [&] () -> void {
+      Tools::OCL::set_kernel_buf_arg(gpu
+                                   , "sum_partial_probs_1d"
+                                   , 0
+                                   , partial_buf1);
+      Tools::OCL::set_kernel_buf_arg(gpu
+                                   , "sum_partial_probs_1d"
+                                   , 5
+                                   , partial_buf2);
+    };
+    Tools::OCL::set_kernel_buf_arg(gpu
+                                 , "sum_partial_probs_1d"
+                                 , 1
+                                 , "P");
+    Tools::OCL::set_kernel_scalar_arg(gpu
+                                    , "sum_partial_probs_1d"
+                                    , 2 // i_ref
+                                    , i_ref);
+    Tools::OCL::set_kernel_scalar_arg(gpu
+                                    , "sum_partial_probs_1d"
+                                    , 3 // n_partials
+                                    , (unsigned int) n_partials);
+    Tools::OCL::set_kernel_scalar_arg(gpu
+                                    , "sum_partial_probs_1d"
+                                    , 4 // n_wg
+                                    , (unsigned int) n_wg);
+    set_partial_bufs();
+    unsigned int rng = Tools::min_multiplicator(n_partials, wgsize) * wgsize;
+    while (rng > 1) {
+      // reduce on current stage
+      if (rng < wgsize) {
+        gpu->nq_range_offset("sum_partial_probs_1d"
+                           , 0
+                           , wgsize
+                           , wgsize);
+      } else {
+        gpu->nq_range_offset("sum_partial_probs_1d"
+                           , 0
+                           , rng
+                           , wgsize);
+      }
+      // next stage with swapped partial buffers for correct reduction
+      rng /= wgsize;
+      Tools::OCL::set_kernel_scalar_arg(gpu
+                                      , "sum_partial_probs_1d"
+                                      , 3
+                                      , rng);
+      std::swap(partial_buf1, partial_buf2);
+      set_partial_bufs();
+    }
+    Tools::OCL::check_error(clFlush(gpu->q), "clFlush");
+  }
+
   std::vector<float>
   compute_densities_1d(Tools::OCL::GPUElement* gpu
                      , const float* coords
@@ -18,21 +79,6 @@ namespace Dens {
                      , std::size_t wgsize) {
     using Tools::OCL::check_error;
     float h_inv = 1.0f / h;
-    // helper functions to run kernel
-    auto nq_range_offset = [&] (std::string kname
-                              , std::size_t offset
-                              , std::size_t range) {
-      check_error(clEnqueueNDRangeKernel(gpu->q
-                                       , gpu->kernels[kname]
-                                       , 1
-                                       , &offset
-                                       , &range
-                                       , &wgsize
-                                       , 0
-                                       , NULL
-                                       , NULL)
-                , "clEnqueueNDRangeKernel");
-    };
     // pre-sort coordinates
     std::vector<float> sorted_coords(n_rows);
     for (std::size_t i=0; i < n_rows; ++i) {
@@ -70,10 +116,6 @@ namespace Dens {
                                     , "partial_probs_1d"
                                     , 3
                                     , h_inv);
-    Tools::OCL::set_kernel_buf_arg(gpu
-                                 , "sum_partial_probs_1d"
-                                 , 1
-                                 , "P");
     for (unsigned int i=0; i < n_rows; ++i) {
       // prune full range to limit of bandwidth
       float ref_val = coords[i_col*n_rows + i];
@@ -85,57 +127,12 @@ namespace Dens {
                                       , "partial_probs_1d"
                                       , 4
                                       , ref_scaled_neg);
-      nq_range_offset("partial_probs_1d"
-                    , min_max.first * wgsize
-                    , mm_range * wgsize);
-      // stagewise reduction of workgroup results
-      std::string partial_buf1 = "P_partial";
-      std::string partial_buf2 = "P_partial_reduct";
-      auto set_partial_bufs = [&] () -> void {
-        Tools::OCL::set_kernel_buf_arg(gpu
-                                     , "sum_partial_probs_1d"
-                                     , 0
-                                     , partial_buf1);
-        Tools::OCL::set_kernel_buf_arg(gpu
-                                     , "sum_partial_probs_1d"
-                                     , 5
-                                     , partial_buf2);
-      };
-      Tools::OCL::set_kernel_scalar_arg(gpu
-                                      , "sum_partial_probs_1d"
-                                      , 2 // i_ref
-                                      , i);
-      Tools::OCL::set_kernel_scalar_arg(gpu
-                                      , "sum_partial_probs_1d"
-                                      , 3 // n_partials
-                                      , (unsigned int) mm_range);
-      Tools::OCL::set_kernel_scalar_arg(gpu
-                                      , "sum_partial_probs_1d"
-                                      , 4 // n_wg
-                                      , (unsigned int) n_wg);
-      set_partial_bufs();
-      unsigned int rng = Tools::min_multiplicator(mm_range, wgsize) * wgsize;
-      while (rng > 1) {
-        // reduce on current stage
-        if (rng < wgsize) {
-          nq_range_offset("sum_partial_probs_1d"
-                        , 0
-                        , wgsize);
-        } else {
-          nq_range_offset("sum_partial_probs_1d"
-                        , 0
-                        , rng);
-        }
-        // next stage with swapped partial buffers for correct reduction
-        rng /= wgsize;
-        Tools::OCL::set_kernel_scalar_arg(gpu
-                                       , "sum_partial_probs_1d"
-                                       , 3
-                                       , rng);
-        std::swap(partial_buf1, partial_buf2);
-        set_partial_bufs();
-      }
-      check_error(clFlush(gpu->q), "clFlush");
+      gpu->nq_range_offset("partial_probs_1d"
+                         , min_max.first * wgsize
+                         , mm_range * wgsize
+                         , wgsize);
+      // compute P(i) from partials
+      stagewise_reduction(gpu, i, mm_range, n_wg, wgsize);
     }
     // retrieve probability densities from device
     std::vector<float> densities(n_rows);
@@ -149,11 +146,6 @@ namespace Dens {
                                   , NULL
                                   , NULL)
               , "clEnqueueReadBuffer");
-    // normalize
-    float sum = Tools::kahan_sum(densities);
-    for (float& d: densities) {
-      d /= sum;
-    }
     return densities;
   }
 
@@ -225,6 +217,19 @@ namespace Dens {
                                         , bandwidths[j]
                                         , n_wg
                                         , wgsize);
+    }
+    // normalize densities
+    unsigned int i;
+    float sum;
+    #pragma omp parallel for default(none)\
+                             private(j,i,sum)\
+                             firstprivate(n_selected_cols,n_rows)\
+                             shared(densities)
+    for (j=0; j < n_selected_cols; ++j) {
+      sum = Tools::kahan_sum(densities[j]);
+      for (i=0; i < n_rows; ++i) {
+        densities[j][i] /= sum;
+      }
     }
     return densities;
   }

@@ -26,6 +26,11 @@ namespace OCL {
     cl_program prog;
     std::map<std::string, cl_kernel> kernels;
     std::map<std::string, cl_mem> buffers;
+
+    void nq_range_offset(std::string kname
+                       , std::size_t offset
+                       , std::size_t range
+                       , std::size_t wgsize);
   };
 
   //TODO: move?

@@ -9,6 +9,23 @@
 namespace Tools {
 namespace OCL {
 
+  void
+  GPUElement::nq_range_offset(std::string kname
+                            , std::size_t offset
+                            , std::size_t range
+                            , std::size_t wgsize) {
+    check_error(clEnqueueNDRangeKernel(this->q
+                                     , this->kernels[kname]
+                                     , 1
+                                     , &offset
+                                     , &range
+                                     , &wgsize
+                                     , 0
+                                     , NULL
+                                     , NULL)
+              , "clEnqueueNDRangeKernel");
+  }
+
   std::string
   load_kernel_source(std::string fname) {
     std::ifstream fin(fname);

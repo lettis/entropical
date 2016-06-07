@@ -48,27 +48,7 @@ partial_probs_1d(__global const float* sorted_coords
   }
 }
 
-
-
-
-
-//__kernel void
-//sum_partial_probs_1d(__global const float* P_partial
-//                   , __global float* P
-//                   , unsigned int i_ref
-//                   , unsigned int n_partials
-//                   , unsigned int n_wg) {
-//  float Pacc = 0.0f;
-//  for (uint i=0; i < n_partials; ++i) {
-//    Pacc += P_partial[i];
-//  }
-//  P[i_ref] = Pacc / ((float) n_wg);
-//}
-
-
-
-
-/* parallel version */
+/* stagewise parallel reduction */
 __kernel void
 sum_partial_probs_1d(__global float* P_partial
                    , __global float* P

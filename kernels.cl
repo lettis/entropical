@@ -48,13 +48,34 @@ partial_probs_1d(__global const float* sorted_coords
   }
 }
 
+
+
+
+
+//__kernel void
+//sum_partial_probs_1d(__global const float* P_partial
+//                   , __global float* P
+//                   , unsigned int i_ref
+//                   , unsigned int n_partials
+//                   , unsigned int n_wg) {
+//  float Pacc = 0.0f;
+//  for (uint i=0; i < n_partials; ++i) {
+//    Pacc += P_partial[i];
+//  }
+//  P[i_ref] = Pacc / ((float) n_wg);
+//}
+
+
+
+
 /* parallel version */
 __kernel void
 sum_partial_probs_1d(__global float* P_partial
                    , __global float* P
                    , unsigned int i_ref
                    , unsigned int n_partials
-                   , unsigned int n_wg) {
+                   , unsigned int n_wg
+                   , __global float* P_partial_reduct) {
   __local float p_wg[WGSIZE];
   uint stride;
   uint gid = get_global_id(0);
@@ -77,7 +98,7 @@ sum_partial_probs_1d(__global float* P_partial
   if (lid == 0) {
     if (get_num_groups(0) > 1) {
       // intermediate reduction result
-      P_partial[wid] = p_wg[0];
+      P_partial_reduct[wid] = p_wg[0];
     } else {
       // end result
       P[i_ref] = p_wg[0] / ((float) n_wg);

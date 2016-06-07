@@ -105,18 +105,53 @@ namespace Dens {
                                       , "sum_partial_probs_1d"
                                       , 4 // n_wg
                                       , (unsigned int) n_wg);
+      Tools::OCL::set_kernel_buf_arg(gpu
+                                   , "sum_partial_probs_1d"
+                                   , 5
+                                   , "P_partial_reduct");
       unsigned int rng = Tools::min_multiplicator(mm_range, wgsize) * wgsize;
-      while (rng >= wgsize) {
-        // reduce on current stage
-        nq_range_offset("sum_partial_probs_1d"
-                      , 0
-                      , rng);
+      bool use_reduction_buffer = false;
+      while (rng > 0) {
+        if (rng != 1) {
+          if (rng < wgsize) {
+            // reduce on current stage
+            nq_range_offset("sum_partial_probs_1d"
+                          , 0
+                          , wgsize);
+          } else {
+            // reduce on current stage
+            nq_range_offset("sum_partial_probs_1d"
+                          , 0
+                          , rng);
+          }
+        }
+        use_reduction_buffer = (! use_reduction_buffer);
         // next stage
         rng /= wgsize;
         Tools::OCL::set_kernel_scalar_arg(gpu
                                        , "sum_partial_probs_1d"
                                        , 3
                                        , rng);
+        // swap partial buffers for correct reduction
+        if (use_reduction_buffer) {
+          Tools::OCL::set_kernel_buf_arg(gpu
+                                       , "sum_partial_probs_1d"
+                                       , 5
+                                       , "P_partial");
+          Tools::OCL::set_kernel_buf_arg(gpu
+                                       , "sum_partial_probs_1d"
+                                       , 0
+                                       , "P_partial_reduct");
+        } else {
+          Tools::OCL::set_kernel_buf_arg(gpu
+                                       , "sum_partial_probs_1d"
+                                       , 0
+                                       , "P_partial");
+          Tools::OCL::set_kernel_buf_arg(gpu
+                                       , "sum_partial_probs_1d"
+                                       , 5
+                                       , "P_partial_reduct");
+        }
       }
       check_error(clFlush(gpu->q), "clFlush");
     }
@@ -158,14 +193,9 @@ namespace Dens {
     // available device memory and data size
     // (1/8 max(wgsize) has shown highest
     //  performance on GeForce GTX 960)
-//    unsigned int wgsize = std::max((unsigned int) 128
-//                                 , Tools::OCL::max_wgsize(&gpus[0]
-//                                                        , sizeof(float)) / 8);
-//
-//TODO: still errors when choosing smaller wgsize
-    unsigned int wgsize = 512;
-    std::cout << wgsize << std::endl;
-
+    unsigned int wgsize = std::max((unsigned int) 64
+                                 , Tools::OCL::max_wgsize(&gpus[0]
+                                                        , sizeof(float)) / 8);
     unsigned int n_wg = Tools::min_multiplicator(n_rows, wgsize);
     unsigned int partial_size = Tools::min_multiplicator(n_wg, wgsize) * wgsize;
     //TODO embed kernel source in header
@@ -187,6 +217,10 @@ namespace Dens {
       Tools::OCL::create_buffer(&gpus[i]
                               , "P_partial"
                               , sizeof(float) * partial_size
+                              , CL_MEM_READ_WRITE);
+      Tools::OCL::create_buffer(&gpus[i]
+                              , "P_partial_reduct"
+                              , sizeof(float) * partial_size / wgsize
                               , CL_MEM_READ_WRITE);
     }
     // compute densities on available GPUs

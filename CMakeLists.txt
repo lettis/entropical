@@ -52,6 +52,7 @@ add_executable(im im.cpp
                   amise.cpp
                   hestimate.cpp
 
+                  densities.cpp
                   tools.cpp
                   tools_opencl.cpp)
 

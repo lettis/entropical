@@ -277,11 +277,19 @@ namespace OCL {
   setup_gpu(GPUElement* gpu
           , std::string kernel_src
           , std::vector<std::string> used_kernels
-          , unsigned int wgsize) {
+          , unsigned int wgsize1d
+          , unsigned int wgsize2d
+          , unsigned int wgsize3d) {
     cl_int err;
     // prepare kernel source
-    kernel_src = std::string("#define WGSIZE ")
-                 + std::to_string(wgsize)
+    kernel_src = std::string("#define WGSIZE1D ")
+                 + std::to_string(wgsize1d)
+                 + std::string("\n")
+                 + std::string("#define WGSIZE2D ")
+                 + std::to_string(wgsize2d)
+                 + std::string("\n")
+                 + std::string("#define WGSIZE3D ")
+                 + std::to_string(wgsize3d)
                  + std::string("\n")
                  + kernel_src;
     const char* src = kernel_src.c_str();

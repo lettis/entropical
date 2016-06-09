@@ -1,5 +1,5 @@
 
-// WGSIZE set by host program
+// WGSIZE1D, WGSIZE2D, WGSIZE3D set by host program
 
 /* local probability from Epanechnikov kernel */
 float epanechnikov( float x
@@ -21,7 +21,7 @@ partial_probs_1d(__global const float* sorted_coords
                , __global float* P_partial
                , float h_inv
                , float ref_scaled_neg) {
-  __local float p_wg[WGSIZE];
+  __local float p_wg[WGSIZE1D];
   uint stride;
   uint gid = get_global_id(0);
   uint lid = get_local_id(0);
@@ -36,7 +36,7 @@ partial_probs_1d(__global const float* sorted_coords
     p_wg[lid] = 0.0f;
   }
   // reduce locally
-  for (stride=WGSIZE/2; stride > 0; stride /= 2) {
+  for (stride=WGSIZE1D/2; stride > 0; stride /= 2) {
     barrier(CLK_LOCAL_MEM_FENCE);
     if (lid < stride) {
       p_wg[lid] += p_wg[lid+stride];
@@ -44,19 +44,30 @@ partial_probs_1d(__global const float* sorted_coords
   }
   barrier(CLK_LOCAL_MEM_FENCE);
   if (lid == 0) {
-    P_partial[wid] = p_wg[0] / ((float) WGSIZE);
+    P_partial[wid] = p_wg[0] / ((float) WGSIZE1D);
   }
+}
+
+__kernel void
+partial_probs_2d(__global const float* sorted_coords
+               , unsigned int n_rows
+               , __global float* P_partial
+               , float h_inv_1
+               , float h_inv_2
+               , float ref_scaled_neg_1
+               , float ref_scaled_neg_2) {
+  //TODO
 }
 
 /* stagewise parallel reduction */
 __kernel void
-sum_partial_probs_1d(__global float* P_partial
-                   , __global float* P
-                   , unsigned int i_ref
-                   , unsigned int n_partials
-                   , unsigned int n_wg
-                   , __global float* P_partial_reduct) {
-  __local float p_wg[WGSIZE];
+sum_partial_probs(__global float* P_partial
+                , __global float* P
+                , unsigned int i_ref
+                , unsigned int n_partials
+                , unsigned int n_wg
+                , __global float* P_partial_reduct) {
+  __local float p_wg[WGSIZE1D];
   uint stride;
   uint gid = get_global_id(0);
   uint lid = get_local_id(0);
@@ -68,7 +79,7 @@ sum_partial_probs_1d(__global float* P_partial
     p_wg[lid] = 0.0f;
   }
   // reduce
-  for (stride=WGSIZE/2; stride > 0; stride /= 2) {
+  for (stride=WGSIZE1D/2; stride > 0; stride /= 2) {
     barrier(CLK_LOCAL_MEM_FENCE);
     if (lid < stride) {
       p_wg[lid] += p_wg[lid+stride];

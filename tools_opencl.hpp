@@ -93,7 +93,9 @@ namespace OCL {
   setup_gpu(GPUElement* gpu
           , std::string kernel_src
           , std::vector<std::string> used_kernels
-          , unsigned int wgsize);
+          , unsigned int wgsize1d
+          , unsigned int wgsize2d
+          , unsigned int wgsize3d);
 
   /**
    * Creates buffer on given GPU device.

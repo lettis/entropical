@@ -266,6 +266,10 @@ compute_densities_2d(Tools::OCL::GPUElement* gpu
                                     , -1.0f * h_inv[1] * ref_val_2);
     std::size_t mm_range_1 = min_max_1.second - min_max_1.first + 1;
     std::size_t mm_range_2 = min_max_2.second - min_max_2.first + 1;
+
+    //TODO: compute overlap region of mm_range_1 and mm_range_2
+    //      -> nq one-dimensionally (probs over same time!)
+
     // compute partial probabilities
     // TODO
 

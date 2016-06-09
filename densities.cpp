@@ -100,12 +100,13 @@ namespace {
 
 
 
-void
+unsigned int
 prepare_gpus_1d(std::vector<Tools::OCL::GPUElement>& gpus
               , unsigned int wgsize1d
-              , unsigned int n_wg
-              , std::size_t n_rows
-              , unsigned int partial_size) {
+              , std::size_t n_rows) {
+  unsigned int n_wg = Tools::min_multiplicator(n_rows, wgsize1d);
+  unsigned int partial_size = Tools::min_multiplicator(n_wg
+                                                     , wgsize1d) * wgsize1d;
   //TODO embed kernel source in header
   std::string kernel_src = Tools::OCL::load_kernel_source("kernels.cl");
   for (unsigned int i=0; i < gpus.size(); ++i) {
@@ -133,6 +134,7 @@ prepare_gpus_1d(std::vector<Tools::OCL::GPUElement>& gpus
                             , sizeof(float) * partial_size / wgsize1d
                             , CL_MEM_READ_WRITE);
   }
+  return n_wg;
 }
 
 std::vector<float>
@@ -208,8 +210,68 @@ compute_densities_2d(Tools::OCL::GPUElement* gpu
                    , std::size_t n_rows
                    , std::size_t i_col[2]
                    , float h[2]
-                   , std::size_t n_wg[2]
-                   , std::size_t wgsize) {
-  //TODO implement
+                   , std::size_t n_wg_1d
+                   , std::size_t wgsize_2d) {
+  using Tools::OCL::check_error;
+  float h_inv[2] = {1.0f/h[0], 1.0f/h[1]};
+  // transmit sorted coords to GPU and separate into boxes
+  // (for both dimensions)
+  std::vector<float> boxlimits_1 = prepare_coords(gpu
+                                                , "sorted_coords_1"
+                                                , coords
+                                                , n_rows
+                                                , i_col[0]
+                                                , wgsize_1d);
+  std::vector<float> boxlimits_2 = prepare_coords(gpu
+                                                , "sorted_coords_2"
+                                                , coords
+                                                , n_rows
+                                                , i_col[1]
+                                                , wgsize_1d);
+  // set general kernel parameters
+  auto setbufarg = [&] (unsigned int ndx, std::string bufname) -> void {
+    Tools::OCL::set_kernel_buf_arg(gpu
+                                 , "partial_probs_2d"
+                                 , ndx 
+                                 , bufname);
+  };
+  setbufarg(0, "sorted_coords_1");
+  setbufarg(1, "sorted_coords_2");
+  Tools::OCL::set_kernel_scalar_arg(gpu
+                                  , "partial_probs_2d"
+                                  , 2
+                                  , (unsigned int) n_rows);
+  setbufarg(3, "P_partial");
+  Tools::OCL::set_kernel_scalar_arg(gpu
+                                  , "partial_probs_2d"
+                                  , 4
+                                  , h_inv[0]);
+  Tools::OCL::set_kernel_scalar_arg(gpu
+                                  , "partial_probs_2d"
+                                  , 5
+                                  , h_inv[1]);
+  // run kernel-loop over all frames
+  for (unsigned int i=0; i < n_rows; ++i) {
+    float ref_val_1 = coords[i_col[0]*n_rows + i];
+    float ref_val_2 = coords[i_col[1]*n_rows + i];
+    auto min_max_1 = Tools::min_max_box(boxlimits_1, ref_val_1, h[0]);
+    auto min_max_2 = Tools::min_max_box(boxlimits_2, ref_val_2, h[1]);
+    Tools::OCL::set_kernel_scalar_arg(gpu
+                                    , "partial_probs_2d"
+                                    , 6
+                                    , -1.0f * h_inv[0] * ref_val_1);
+    Tools::OCL::set_kernel_scalar_arg(gpu
+                                    , "partial_probs_2d"
+                                    , 7
+                                    , -1.0f * h_inv[1] * ref_val_2);
+    std::size_t mm_range_1 = min_max_1.second - min_max_1.first + 1;
+    std::size_t mm_range_2 = min_max_2.second - min_max_2.first + 1;
+    // compute partial probabilities
+    // TODO
+
+    // compute P(i,j) from partials
+    // TODO
+  }
+
 }
 

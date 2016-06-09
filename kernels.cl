@@ -49,7 +49,8 @@ partial_probs_1d(__global const float* sorted_coords
 }
 
 __kernel void
-partial_probs_2d(__global const float* sorted_coords
+partial_probs_2d(__global const float* sorted_coords_1
+               , __global const float* sorted_coords_2
                , unsigned int n_rows
                , __global float* P_partial
                , float h_inv_1

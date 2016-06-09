@@ -25,11 +25,10 @@ namespace Dens {
     // TODO: workgroup size is hard-coded to optimum for GeForce GTX-960.
     //       this has to be changed to a relative value of max(wgsize).
     unsigned int wgsize1d = 128;
-    unsigned int n_wg = Tools::min_multiplicator(n_rows, wgsize1d);
-    unsigned int partial_size = Tools::min_multiplicator(n_wg
-                                                       , wgsize1d) * wgsize1d;
     // compute densities on available GPUs
-    prepare_gpus_1d(gpus, wgsize1d, n_wg, n_rows, partial_size);
+    unsigned int n_wg = prepare_gpus_1d(gpus
+                                      , wgsize1d
+                                      , n_rows);
     unsigned int j, thread_id;
     unsigned int n_selected_cols = selected_cols.size();
     #pragma omp parallel for default(none)\

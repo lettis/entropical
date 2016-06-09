@@ -30,14 +30,13 @@ namespace {
 
 
 /**
- * Prepare GPU for 1D density computation
+ * Prepare GPU for 1D density computation.
+ * @returns number of workgroups needed for computation
  */
-void
+unsigned int
 prepare_gpus_1d(std::vector<Tools::OCL::GPUElement>& gpus
               , unsigned int wgsize1d
-              , unsigned int n_wg
-              , std::size_t n_rows
-              , unsigned int partial_size);
+              , std::size_t n_rows);
 
 /**
  * Perform density computation for one observable on given GPU.
@@ -60,6 +59,6 @@ compute_densities_2d(Tools::OCL::GPUElement* gpu
                    , std::size_t n_rows
                    , std::size_t i_col[2]
                    , float h[2]
-                   , std::size_t n_wg_1d
-                   , std::size_t wgsize_1d);
+                   , std::size_t n_wg
+                   , std::size_t wgsize_2d);
 

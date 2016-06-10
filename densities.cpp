@@ -184,6 +184,8 @@ prepare_gpus_1d(std::vector<Tools::OCL::GPUElement>& gpus
   return n_wg;
 }
 
+
+//TODO transform to n-dim code
 std::vector<float>
 compute_densities_1d(Tools::OCL::GPUElement* gpu
                    , const float* coords
@@ -214,17 +216,13 @@ compute_densities_1d(Tools::OCL::GPUElement* gpu
                                , "partial_probs_1d"
                                , 2
                                , "P_partial");
-  Tools::OCL::set_kernel_scalar_arg(gpu
-                                  , "partial_probs_1d"
-                                  , 3
-                                  , n_dim);
   Tools::OCL::set_kernel_buf_arg(gpu
                                , "partial_probs_1d"
-                               , 4
+                               , 3
                                , "h_inv");
   Tools::OCL::set_kernel_buf_arg(gpu
                                , "partial_probs_1d"
-                               , 5
+                               , 4
                                , "ref_scaled_neg");
   for (unsigned int i=0; i < n_rows; ++i) {
     // prune full range to limit of bandwidth
@@ -265,80 +263,4 @@ compute_densities_1d(Tools::OCL::GPUElement* gpu
             , "clEnqueueReadBuffer");
   return densities;
 }
-
-//std::vector<float>
-//compute_densities_2d(Tools::OCL::GPUElement* gpu
-//                   , const float* coords
-//                   , std::size_t n_rows
-//                   , std::size_t i_col[2]
-//                   , float h[2]
-//                   , std::size_t n_wg
-//                   , std::size_t wgsize) {
-//  using Tools::OCL::check_error;
-//  float h_inv[2] = {1.0f/h[0], 1.0f/h[1]};
-//  // transmit sorted coords to GPU and separate into boxes
-//  // (for both dimensions)
-//  std::vector<float> boxlimits = prepare_coords(gpu
-//                                              , "sorted_coords"
-//                                              , coords
-//                                              , n_rows
-//                                              , {i_col[0], i_col[1]}
-//                                              , wgsize);
-//  // set general kernel parameters
-//  auto setbufarg = [&] (unsigned int ndx, std::string bufname) -> void {
-//    Tools::OCL::set_kernel_buf_arg(gpu
-//                                 , "partial_probs_2d"
-//                                 , ndx 
-//                                 , bufname);
-//  };
-//  setbufarg(0, "sorted_coords_1");
-//  Tools::OCL::set_kernel_scalar_arg(gpu
-//                                  , "partial_probs_2d"
-//                                  , 1
-//                                  , (unsigned int) n_rows);
-//  setbufarg(2, "P_partial");
-//  Tools::OCL::set_kernel_scalar_arg(gpu
-//                                  , "partial_probs_2d"
-//                                  , 3
-//                                  , h_inv[0]);
-//  Tools::OCL::set_kernel_scalar_arg(gpu
-//                                  , "partial_probs_2d"
-//                                  , 4
-//                                  , h_inv[1]);
-//  // run kernel-loop over all frames
-//  for (unsigned int i=0; i < n_rows; ++i) {
-//    float ref_val_1 = coords[i_col[0]*n_rows + i];
-//    float ref_val_2 = coords[i_col[1]*n_rows + i];
-//    auto min_max = Tools::min_max_box(boxlimits, ref_val_1, h[0]);
-//    Tools::OCL::set_kernel_scalar_arg(gpu
-//                                    , "partial_probs_2d"
-//                                    , 5
-//                                    , -1.0f * h_inv[0] * ref_val_1);
-//    Tools::OCL::set_kernel_scalar_arg(gpu
-//                                    , "partial_probs_2d"
-//                                    , 6
-//                                    , -1.0f * h_inv[1] * ref_val_2);
-//    std::size_t mm_range = min_max.second - min_max.first + 1;
-//    // compute partial probs
-//    gpu->nq_range_offset("partial_probs_2d"
-//                       , min_max.first * wgsize
-//                       , mm_range * wgsize
-//                       , wgsize);
-//    // compute P(i,j) from partials
-//    stagewise_reduction(gpu, i, mm_range, n_wg, wgsize);
-//  }
-//  // retrieve probability densities from device
-//  std::vector<float> densities(n_rows);
-//  check_error(clEnqueueReadBuffer(gpu->q
-//                                , gpu->buffers["P"]
-//                                , CL_TRUE
-//                                , 0
-//                                , sizeof(float) * n_rows
-//                                , densities.data()
-//                                , 0
-//                                , NULL
-//                                , NULL)
-//            , "clEnqueueReadBuffer");
-//  return densities;
-//}
 

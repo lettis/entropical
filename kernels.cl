@@ -19,7 +19,7 @@ epanechnikov(float x
 /* pre-reduce probabilities inside workgroup */
 void
 local_prob_reduction(uint lid
-                   , float* p_wg
+                   , __local float* p_wg
                    , __global float* P_partial) {
   uint stride;
   uint wid = get_group_id(0);

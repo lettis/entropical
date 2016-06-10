@@ -155,9 +155,7 @@ prepare_gpus_1d(std::vector<Tools::OCL::GPUElement>& gpus
                         , kernel_src
                         , {"partial_probs_1d"
                          , "sum_partial_probs"}
-                        , wgsize
-                        , 0
-                        , 0);
+                        , wgsize);
     Tools::OCL::create_buffer(&gpus[i]
                             , "sorted_coords"
                             , sizeof(float) * n_wg * wgsize

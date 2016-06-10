@@ -55,7 +55,8 @@ namespace Tools {
   template <typename NUM>
   std::vector<NUM>
   boxlimits(const std::vector<NUM>& xs
-          , std::size_t boxsize);
+          , std::size_t boxsize
+          , std::size_t n_dim);
 
   template <typename NUM>
   std::pair<std::size_t, std::size_t>

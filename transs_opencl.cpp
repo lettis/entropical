@@ -1,5 +1,4 @@
 
-
 #include "transs_opencl.hpp"
 #include "tools_opencl.hpp"
 

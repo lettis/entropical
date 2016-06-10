@@ -40,14 +40,17 @@ namespace Tools {
   template <typename NUM>
   std::vector<NUM>
   boxlimits(const std::vector<NUM>& xs
-          , std::size_t boxsize) {
-    std::size_t n_xs = xs.size();
+          , std::size_t boxsize
+          , std::size_t n_dim) {
+    std::size_t n_xs = xs.size() / n_dim;
     std::size_t n_boxes = n_xs / boxsize;
     if (n_boxes * boxsize < n_xs) {
       ++n_boxes;
     }
     std::vector<NUM> boxlimits(n_boxes);
     for (std::size_t i=0; i < n_boxes; ++i) {
+      // split into boxes on 1st dimension
+      // (i.e. col-index == 0)
       boxlimits[i] = xs[i*boxsize];
     }
     return boxlimits;

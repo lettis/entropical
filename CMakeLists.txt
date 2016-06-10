@@ -44,9 +44,8 @@ include_directories (${OPENCL_INCLUDE_DIRS})
 add_executable(im im.cpp
                   im_help.cpp
 
-                  transs.cpp
-                  transs_opencl.cpp
                   mi.cpp
+                  transs.cpp
                   dens.cpp
                   negs.cpp
                   amise.cpp

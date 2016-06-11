@@ -13,7 +13,6 @@ namespace {
                , const float* coords
                , std::size_t n_rows
                , std::vector<std::size_t> col_indices
-               , std::vector<float> hs
                , std::size_t wgsize) {
     using Tools::OCL::check_error;
     unsigned int n_dim = col_indices.size();
@@ -54,21 +53,6 @@ namespace {
                                    , NULL
                                    , NULL)
               , "clEnqueueWriteBuffer");
-    // copy inverse bandwidths to device
-    for (float& h: hs) {
-      h = 1.0f/ h;
-    }
-    check_error(clEnqueueWriteBuffer(gpu->q
-                                   , gpu->buffers["h_inv"]
-                                   , CL_TRUE
-                                   , 0
-                                   , sizeof(float) * n_dim
-                                   , hs.data()
-                                   , 0
-                                   , NULL
-                                   , NULL)
-             , "clEnqueueWriteBuffer");
-    check_error(clFlush(gpu->q), "clFlush");
     // limits for box-assisted pruning
     return Tools::boxlimits(sorted_coords, wgsize, n_dim);
   }
@@ -172,14 +156,6 @@ prepare_gpus_1d(std::vector<Tools::OCL::GPUElement>& gpus
                             , "P_partial_reduct"
                             , sizeof(float) * partial_size / wgsize
                             , CL_MEM_READ_WRITE);
-    Tools::OCL::create_buffer(&gpus[i]
-                            , "h_inv"
-                            , sizeof(float) * 1
-                            , CL_MEM_READ_ONLY);
-    Tools::OCL::create_buffer(&gpus[i]
-                            , "ref_scaled_neg"
-                            , sizeof(float) * 1
-                            , CL_MEM_READ_ONLY);
   }
   return n_wg;
 }
@@ -200,7 +176,6 @@ compute_densities_1d(Tools::OCL::GPUElement* gpu
                                               , coords
                                               , n_rows
                                               , {i_col}
-                                              , {h}
                                               , wgsize);
   // run kernel-loop over all frames
   Tools::OCL::set_kernel_buf_arg(gpu
@@ -215,39 +190,22 @@ compute_densities_1d(Tools::OCL::GPUElement* gpu
                                , "partial_probs_1d"
                                , 2
                                , "P_partial");
+  float h_inv = 1.0f/h;
   Tools::OCL::set_kernel_scalar_arg(gpu
                                   , "partial_probs_1d"
                                   , 3
-                                  , 1.0f/h);
-//  Tools::OCL::set_kernel_buf_arg(gpu
-//                               , "partial_probs_1d"
-//                               , 3
-//                               , "h_inv");
-//  Tools::OCL::set_kernel_buf_arg(gpu
-//                               , "partial_probs_1d"
-//                               , 4
-//                               , "ref_scaled_neg");
+                                  , h_inv);
   for (unsigned int i=0; i < n_rows; ++i) {
     // prune full range to limit of bandwidth
     float ref_val = coords[i_col*n_rows + i];
     auto min_max = Tools::min_max_box(boxlimits, ref_val, h);
     std::size_t mm_range = min_max.second - min_max.first + 1;
     // set reference
-    float ref_scaled_neg = -1.0f/h * ref_val;
+    float ref_scaled_neg = -h_inv * ref_val;
     Tools::OCL::set_kernel_scalar_arg(gpu
                                     , "partial_probs_1d"
                                     , 4
                                     , ref_scaled_neg);
-//    check_error(clEnqueueWriteBuffer(gpu->q
-//                                   , gpu->buffers["ref_scaled_neg"]
-//                                   , CL_TRUE
-//                                   , 0
-//                                   , sizeof(float) * 1
-//                                   , &ref_scaled_neg
-//                                   , 0
-//                                   , NULL
-//                                   , NULL)
-//              , "clEnqueueWriteBuffer");
     // compute partials in workgroups
     gpu->nq_range_offset("partial_probs_1d"
                        , min_max.first * wgsize

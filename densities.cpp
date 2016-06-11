@@ -1,6 +1,9 @@
 
 #include "densities.hpp"
 
+//#define NDEBUG
+#include <assert.h>
+
 #include <algorithm>
 
 namespace {
@@ -126,9 +129,11 @@ namespace {
 
 
 unsigned int
-prepare_gpus_1d(std::vector<Tools::OCL::GPUElement>& gpus
-              , unsigned int wgsize
-              , std::size_t n_rows) {
+prepare_gpus(std::vector<Tools::OCL::GPUElement>& gpus
+           , unsigned int wgsize
+           , std::size_t n_rows
+           , std::size_t n_dim) {
+  assert(1 <= n_dim && n_dim <= 3);
   unsigned int n_wg = Tools::min_multiplicator(n_rows, wgsize);
   unsigned int partial_size = Tools::min_multiplicator(n_wg
                                                      , wgsize) * wgsize;
@@ -137,12 +142,12 @@ prepare_gpus_1d(std::vector<Tools::OCL::GPUElement>& gpus
   for (unsigned int i=0; i < gpus.size(); ++i) {
     Tools::OCL::setup_gpu(&gpus[i]
                         , kernel_src
-                        , {"partial_probs_1d"
+                        , {"partial_probs_" + std::to_string(n_dim) + "d"
                          , "sum_partial_probs"}
                         , wgsize);
     Tools::OCL::create_buffer(&gpus[i]
                             , "sorted_coords"
-                            , sizeof(float) * n_wg * wgsize
+                            , sizeof(float) * n_wg * wgsize * n_dim
                             , CL_MEM_READ_ONLY);
     Tools::OCL::create_buffer(&gpus[i]
                             , "P"
@@ -161,53 +166,87 @@ prepare_gpus_1d(std::vector<Tools::OCL::GPUElement>& gpus
 }
 
 
-//TODO transform to n-dim code
 std::vector<float>
-compute_densities_1d(Tools::OCL::GPUElement* gpu
-                   , const float* coords
-                   , std::size_t n_rows
-                   , std::size_t i_col
-                   , float h
-                   , std::size_t n_wg
-                   , std::size_t wgsize) {
+combined_densities(Tools::OCL::GPUElement* gpu
+                 , const float* coords
+                 , std::size_t n_rows
+                 , std::vector<std::size_t> i_cols
+                 , std::vector<float> hs
+                 , std::size_t n_wg
+                 , std::size_t wgsize) {
+  assert(i_cols.size() == hs.size()
+      && 1 <= i_cols.size()
+      && i_cols.size() <= 3);
   using Tools::OCL::check_error;
+  unsigned int n_dim = i_cols.size();
+  std::string kernel_name = "partial_probs_" + std::to_string(n_dim) + "d";
   // transmit sorted coords to GPU and separate into boxes
   std::vector<float> boxlimits = prepare_coords(gpu
                                               , coords
                                               , n_rows
-                                              , {i_col}
+                                              , i_cols
                                               , wgsize);
   // run kernel-loop over all frames
   Tools::OCL::set_kernel_buf_arg(gpu
-                               , "partial_probs_1d"
+                               , kernel_name
                                , 0
                                , "sorted_coords");
   Tools::OCL::set_kernel_scalar_arg(gpu
-                                  , "partial_probs_1d"
+                                  , kernel_name
                                   , 1
                                   , (unsigned int) n_rows);
   Tools::OCL::set_kernel_buf_arg(gpu
-                               , "partial_probs_1d"
+                               , kernel_name
                                , 2
                                , "P_partial");
-  float h_inv = 1.0f/h;
+
+  float h_inv_1=0, h_inv_2=0, h_inv_3=0;
+  h_inv_1 = 1.0f/hs[0];
   Tools::OCL::set_kernel_scalar_arg(gpu
-                                  , "partial_probs_1d"
+                                  , kernel_name
                                   , 3
-                                  , h_inv);
+                                  , h_inv_1);
+  if (n_dim > 1) {
+    h_inv_2 = 1.0f/hs[1];
+    Tools::OCL::set_kernel_scalar_arg(gpu
+                                    , kernel_name
+                                    , 5
+                                    , h_inv_2);
+    if (n_dim == 3) {
+      h_inv_3 = 1.0f/hs[2];
+      Tools::OCL::set_kernel_scalar_arg(gpu
+                                      , kernel_name
+                                      , 7
+                                      , h_inv_3);
+    }
+  }
   for (unsigned int i=0; i < n_rows; ++i) {
     // prune full range to limit of bandwidth
-    float ref_val = coords[i_col*n_rows + i];
-    auto min_max = Tools::min_max_box(boxlimits, ref_val, h);
+    float ref_val = coords[i_cols[0]*n_rows + i];
+    auto min_max = Tools::min_max_box(boxlimits, ref_val, hs[0]);
     std::size_t mm_range = min_max.second - min_max.first + 1;
     // set reference
-    float ref_scaled_neg = -h_inv * ref_val;
+    float ref_scaled_neg = -h_inv_1 * ref_val;
     Tools::OCL::set_kernel_scalar_arg(gpu
-                                    , "partial_probs_1d"
+                                    , kernel_name
                                     , 4
                                     , ref_scaled_neg);
+    if (n_dim > 1) {
+      ref_scaled_neg = -h_inv_2 * coords[i_cols[1]*n_rows + i];
+      Tools::OCL::set_kernel_scalar_arg(gpu
+                                      , kernel_name
+                                      , 6
+                                      , ref_scaled_neg);
+      if (n_dim == 3) {
+        ref_scaled_neg = -h_inv_3 * coords[i_cols[2]*n_rows + i];
+        Tools::OCL::set_kernel_scalar_arg(gpu
+                                        , kernel_name
+                                        , 8
+                                        , ref_scaled_neg);
+      }
+    }
     // compute partials in workgroups
-    gpu->nq_range_offset("partial_probs_1d"
+    gpu->nq_range_offset(kernel_name
                        , min_max.first * wgsize
                        , mm_range * wgsize
                        , wgsize);

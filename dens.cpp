@@ -26,9 +26,10 @@ namespace Dens {
     //       this has to be changed to a relative value of max(wgsize).
     unsigned int wgsize1d = 128;
     // compute densities on available GPUs
-    unsigned int n_wg = prepare_gpus_1d(gpus
-                                      , wgsize1d
-                                      , n_rows);
+    unsigned int n_wg = prepare_gpus(gpus
+                                   , wgsize1d
+                                   , n_rows
+                                   , 1);
     unsigned int j, thread_id;
     unsigned int n_selected_cols = selected_cols.size();
     #pragma omp parallel for default(none)\
@@ -41,13 +42,13 @@ namespace Dens {
                              schedule(dynamic,1)
     for (j=0; j < n_selected_cols; ++j) {
       thread_id = omp_get_thread_num();
-      densities[j] = compute_densities_1d(&gpus[thread_id]
-                                        , coords
-                                        , n_rows
-                                        , j
-                                        , bandwidths[j]
-                                        , n_wg
-                                        , wgsize1d);
+      densities[j] = combined_densities(&gpus[thread_id]
+                                      , coords
+                                      , n_rows
+                                      , {j}
+                                      , {bandwidths[j]}
+                                      , n_wg
+                                      , wgsize1d);
     }
     for (Tools::OCL::GPUElement& gpu: gpus) {
       Tools::OCL::cleanup_gpu(&gpu);

@@ -43,8 +43,6 @@ partial_probs_1d(__global const float* sorted_coords
                , __global float* P_partial
                , float h_inv
                , float ref_scaled_neg) {
-//               , __constant float* h_inv
-//               , __constant float* ref_scaled_neg) {
   __local float p_wg[WGSIZE];
   uint gid = get_global_id(0);
   uint lid = get_local_id(0);
@@ -64,19 +62,21 @@ __kernel void
 partial_probs_2d(__global const float* sorted_coords
                , unsigned int n_rows
                , __global float* P_partial
-               , __constant float* h_inv
-               , __constant float* ref_scaled_neg) {
+               , float h_inv_1
+               , float ref_scaled_neg_1
+               , float h_inv_2
+               , float ref_scaled_neg_2) {
   __local float p_wg[WGSIZE];
   uint gid = get_global_id(0);
   uint lid = get_local_id(0);
   // probability for every frame
   if (gid < n_rows) {
     p_wg[lid] = epanechnikov(sorted_coords[gid]
-                           , ref_scaled_neg[0]
-                           , h_inv[0])
+                           , ref_scaled_neg_1
+                           , h_inv_1)
                 * epanechnikov(sorted_coords[n_rows+gid]
-                             , ref_scaled_neg[1]
-                             , h_inv[1]);
+                             , ref_scaled_neg_2
+                             , h_inv_2);
   } else {
     p_wg[lid] = 0.0f;
   }
@@ -88,22 +88,26 @@ __kernel void
 partial_probs_3d(__global const float* sorted_coords
                , unsigned int n_rows
                , __global float* P_partial
-               , __constant float* h_inv
-               , __constant float* ref_scaled_neg) {
+               , float h_inv_1
+               , float ref_scaled_neg_1
+               , float h_inv_2
+               , float ref_scaled_neg_2
+               , float h_inv_3
+               , float ref_scaled_neg_3) {
   __local float p_wg[WGSIZE];
   uint gid = get_global_id(0);
   uint lid = get_local_id(0);
   // probability for every frame
   if (gid < n_rows) {
     p_wg[lid] = epanechnikov(sorted_coords[gid]
-                   , ref_scaled_neg[0]
-                   , h_inv[0])
+                   , ref_scaled_neg_1
+                   , h_inv_1)
                 * epanechnikov(sorted_coords[n_rows+gid]
-                             , ref_scaled_neg[1]
-                             , h_inv[1])
+                             , ref_scaled_neg_2
+                             , h_inv_2)
                 * epanechnikov(sorted_coords[2*n_rows+gid]
-                             , ref_scaled_neg[2]
-                             , h_inv[2]);
+                             , ref_scaled_neg_3
+                             , h_inv_3);
   } else {
     p_wg[lid] = 0.0f;
   }

@@ -51,8 +51,8 @@ partial_probs_1d(__global const float* sorted_coords
   // probability for every frame
   if (gid < n_rows) {
     p_wg[lid] = epanechnikov(sorted_coords[gid]
-                           , ref_scaled_neg[0]
-                           , h_inv[0]);
+                           , ref_scaled_neg
+                           , h_inv);
   } else {
     p_wg[lid] = 0.0f;
   }

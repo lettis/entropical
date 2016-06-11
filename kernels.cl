@@ -41,8 +41,10 @@ __kernel void
 partial_probs_1d(__global const float* sorted_coords
                , unsigned int n_rows
                , __global float* P_partial
-               , __constant float* h_inv
-               , __constant float* ref_scaled_neg) {
+               , float h_inv
+               , float ref_scaled_neg) {
+//               , __constant float* h_inv
+//               , __constant float* ref_scaled_neg) {
   __local float p_wg[WGSIZE];
   uint gid = get_global_id(0);
   uint lid = get_local_id(0);

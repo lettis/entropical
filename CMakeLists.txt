@@ -51,6 +51,15 @@ set(IM_SRC im.cpp
 
 set (IM_LIBS ${Boost_LIBRARIES} coords_file)
 
+if (${DEBUG})
+  message(STATUS "debug mode")
+  #TODO: add debug flags to compiler
+else()
+  message(STATUS "production mode")
+  add_definitions(-DNDEBUG)
+endif()
+
+
 if (${USE_OPENCL})
   message(STATUS "  Acceleration: using OpenCL")
   find_package(OpenCL REQUIRED)

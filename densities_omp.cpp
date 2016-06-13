@@ -65,25 +65,30 @@ namespace {
     std::size_t i,k;
     float ref_val, epa;
     bool in_range;
-    #pragma omp parallel for default(none)\
-                             private(ref_val,i,k,in_range,epa)\
-                             firstprivate(n_rows,h)\
-                             shared(sorted_coords,P)
+//    #pragma omp parallel for default(none)\
+//                             private(ref_val,i,k,in_range,epa)\
+//                             firstprivate(n_rows,h)\
+//                             shared(sorted_coords,P)\
+//                             schedule(dynamic,1)
     for (i=0; i < n_rows; ++i) {
       ref_val = sorted_coords[i];
       in_range = false;
       for (k=0; k < n_rows; ++k) {
         epa = epanechnikov(ref_val, sorted_coords[k], h[0]);
-        if (epa > 0.0f && (! in_range)) {
-          in_range = true;
-          P[i] = epa;
-        } else if (epa > 0.0f && (in_range)) {
+//        if (epa > 0) {
+//          std::cerr << i << " " << epa << std::endl;
+//        }
+//std::cerr << epa << std::endl;
+//        if (epa > 0.0f && (! in_range)) {
+//          in_range = true;
+//          P[i] = epa;
+//        } else if (epa > 0.0f && (in_range)) {
           P[i] += epa;
-        } else if (in_range) {
-          break;
-        }
+//        } else if (in_range) {
+//          break;
+//        }
       }
-      P[i] /= n_rows;
+//      P[i] /= n_rows;
     }
     return P;
   }

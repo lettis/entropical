@@ -73,18 +73,18 @@ namespace Dens {
     }
 #endif
     // normalize densities
-    unsigned int i;
-    float sum;
-    #pragma omp parallel for default(none)\
-                             private(j,i,sum)\
-                             firstprivate(n_selected_cols,n_rows)\
-                             shared(densities)
-    for (j=0; j < n_selected_cols; ++j) {
-      sum = Tools::kahan_sum(densities[j]);
-      for (i=0; i < n_rows; ++i) {
-        densities[j][i] /= sum;
-      }
-    }
+//    unsigned int i;
+//    float sum;
+//    #pragma omp parallel for default(none)\
+//                             private(j,i,sum)\
+//                             firstprivate(n_selected_cols,n_rows)\
+//                             shared(densities)
+//    for (j=0; j < n_selected_cols; ++j) {
+//      sum = Tools::kahan_sum(densities[j]);
+//      for (i=0; i < n_rows; ++i) {
+//        densities[j][i] /= sum;
+//      }
+//    }
     return densities;
   }
 

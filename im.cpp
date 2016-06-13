@@ -23,14 +23,18 @@
 #include "amise.hpp"
 #include "hestimate.hpp"
 
-
 int main(int argc, char* argv[]) {
   namespace po = boost::program_options;
   po::variables_map args;
   po::options_description opts(std::string(argv[0]).append(
     " [OPTIONS]\n\n"
     "compute information measures like local probabilities,"
-    " mutual information, information transfer, etc.\n\n"
+    " mutual information, information transfer, etc.\n"
+#ifdef USE_OPENCL
+    "code is accelerated by OpenCL on GPUs.\n\n"
+#else
+    "code is accelerated by OpenMP on CPU.\n\n"
+#endif
     "options"));
   try {
     opts.add_options()

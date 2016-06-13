@@ -1,10 +1,7 @@
-
 #pragma once
 
 #include <vector>
 #include <boost/program_options.hpp>
-
-#include "tools_opencl.hpp"
 
 namespace Dens {
 

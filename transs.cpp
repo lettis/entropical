@@ -2,8 +2,6 @@
 #include "transs.hpp"
 #include "tools.hpp"
 
-#include "tools_opencl.hpp"
-
 #include <omp.h>
 
 namespace Transs {

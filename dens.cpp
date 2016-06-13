@@ -4,7 +4,14 @@
 #include <omp.h>
 
 #include "dens.hpp"
-#include "densities.hpp"
+
+#ifdef USE_OPENCL
+  #include "tools_opencl.hpp"
+  #include "densities_opencl.hpp"
+#else
+  #include "densities_omp.hpp"
+#endif
+
 #include "tools.hpp"
 
 namespace Dens {
@@ -15,6 +22,10 @@ namespace Dens {
                   , std::size_t n_rows
                   , std::vector<float> bandwidths) {
     std::vector<std::vector<float>> densities(selected_cols.size());
+    unsigned int n_selected_cols = selected_cols.size();
+    unsigned int j;
+#ifdef USE_OPENCL
+    //// compute probability densities with OpenCL on GPU(s)
     // setup OpenCL environment
     std::vector<Tools::OCL::GPUElement> gpus = Tools::OCL::gpus();
     std::size_t n_gpus = gpus.size();
@@ -30,8 +41,7 @@ namespace Dens {
                                    , wgsize1d
                                    , n_rows
                                    , 1);
-    unsigned int j, thread_id;
-    unsigned int n_selected_cols = selected_cols.size();
+    unsigned int thread_id;
     #pragma omp parallel for default(none)\
                              private(j,thread_id)\
                              firstprivate(n_selected_cols,n_rows,\
@@ -53,6 +63,15 @@ namespace Dens {
     for (Tools::OCL::GPUElement& gpu: gpus) {
       Tools::OCL::cleanup_gpu(&gpu);
     }
+#else
+    //// compute probability densities with OpenMP on CPU
+    for (unsigned int j=0; j < n_selected_cols; ++j) {
+      densities[j] = combined_densities(coords
+                                      , n_rows
+                                      , {j}
+                                      , {bandwidths[j]});
+    }
+#endif
     // normalize densities
     unsigned int i;
     float sum;

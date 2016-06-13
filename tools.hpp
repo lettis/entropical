@@ -71,6 +71,18 @@ namespace Tools {
   min_multiplicator(unsigned int orig
                   , unsigned int mult);
 
+  /**
+   * @returns sorted coordinates of given columns as column-oriented array.
+   *
+   *          coordinates will be sorted along first column.
+   */
+  template <typename NUM>
+  std::vector<NUM>
+  dim1_sorted_coords(const NUM* coords
+                   , std::size_t n_rows
+                   , std::vector<std::size_t> col_indices);
+
+
   namespace String {
     /**
      * return last n characters of str.

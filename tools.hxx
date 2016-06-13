@@ -1,6 +1,8 @@
 
 #include <iterator>
 #include <map>
+#include <algorithm>
+
 #include <boost/accumulators/accumulators.hpp>
 #include <boost/accumulators/statistics/sum_kahan.hpp>
 
@@ -83,6 +85,40 @@ namespace Tools {
       }
       return {i_min, i_max};
     }
+  }
+
+  template <typename NUM>
+  std::vector<NUM>
+  dim1_sorted_coords(const NUM* coords
+                   , std::size_t n_rows
+                   , std::vector<std::size_t> col_indices) {
+    std::size_t n_dim = col_indices.size();
+    std::vector<NUM> sorted_coords(n_rows*n_dim);
+    if (n_dim == 1) {
+      // directly sort on data if just one column
+      std::size_t i_col = col_indices[0];
+      for (std::size_t i=0; i < n_rows; ++i) {
+        sorted_coords[i] = coords[i_col*n_rows + i];
+      }
+      std::sort(sorted_coords.begin(), sorted_coords.end());
+    } else {
+      // sort on first index
+      std::vector<std::vector<NUM>> c_tmp(n_rows
+                                        , std::vector<float>(n_dim));
+      std::sort(c_tmp.begin()
+              , c_tmp.end()
+              , [] (const std::vector<NUM>& lhs
+                  , const std::vector<NUM>& rhs) {
+                  return lhs[0] < rhs[0];
+                });
+      // feed sorted data into 1D-array
+      for (std::size_t i=0; i < n_rows; ++i) {
+        for (std::size_t j=0; j < n_dim; ++j) {
+          sorted_coords[j*n_rows+i] = c_tmp[i][j];
+        }
+      }
+    }
+    return sorted_coords;
   }
 
 

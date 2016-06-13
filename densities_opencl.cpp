@@ -1,5 +1,5 @@
 
-#include "densities.hpp"
+#include "densities_opencl.hpp"
 
 //#define NDEBUG
 #include <assert.h>
@@ -20,37 +20,15 @@ namespace {
     using Tools::OCL::check_error;
     unsigned int n_dim = col_indices.size();
     // pre-sort coordinates
-    std::vector<float> sorted_coords(n_rows*n_dim);
-    if (n_dim == 1) {
-      // directly sort on data if just one column
-      std::size_t i_col = col_indices[0];
-      for (std::size_t i=0; i < n_rows; ++i) {
-        sorted_coords[i] = coords[i_col*n_rows + i];
-      }
-      std::sort(sorted_coords.begin(), sorted_coords.end());
-    } else {
-      // sort on first index
-      std::vector<std::vector<float>> c_tmp(n_rows
-                                          , std::vector<float>(n_dim));
-      std::sort(c_tmp.begin()
-              , c_tmp.end()
-              , [] (const std::vector<float>& lhs
-                  , const std::vector<float>& rhs) {
-                  return lhs[0] < rhs[0];
-                });
-      // feed sorted data into 1D-array
-      for (std::size_t i=0; i < n_rows; ++i) {
-        for (std::size_t j=0; j < n_dim; ++j) {
-          sorted_coords[j*n_rows+i] = c_tmp[i][j];
-        }
-      }
-    }
+    std::vector<float> sorted_coords = Tools::dim1_sorted_coords(coords
+                                                               , n_rows
+                                                               , col_indices);
     // copy (sorted) coords to device
     check_error(clEnqueueWriteBuffer(gpu->q
                                    , gpu->buffers["sorted_coords"]
                                    , CL_TRUE
                                    , 0
-                                   , sizeof(float) * n_rows
+                                   , sizeof(float) * n_rows * n_dim
                                    , sorted_coords.data()
                                    , 0
                                    , NULL

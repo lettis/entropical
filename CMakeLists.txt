@@ -38,27 +38,36 @@ include_directories (${Boost_INCLUDE_DIR})
 
 #set (OpenCL_INCPATH "/usr/local/cuda/include")
 #set (OpenCL_LIBPATH "/usr/local/cuda/lib64")
-find_package(OpenCL REQUIRED)
-include_directories (${OPENCL_INCLUDE_DIRS})
 
-add_executable(im im.cpp
-                  im_help.cpp
+set(IM_SRC im.cpp
+           im_help.cpp
+           mi.cpp
+           transs.cpp
+           dens.cpp
+           negs.cpp
+           amise.cpp
+           hestimate.cpp
+           tools.cpp)
 
-                  mi.cpp
-                  transs.cpp
-                  dens.cpp
-                  negs.cpp
-                  amise.cpp
-                  hestimate.cpp
+set (IM_LIBS ${Boost_LIBRARIES} coords_file)
 
-                  densities.cpp
-                  tools.cpp
-                  tools_opencl.cpp)
+if (${USE_OPENCL})
+  message(STATUS "  Acceleration: using OpenCL")
+  find_package(OpenCL REQUIRED)
+  include_directories (${OPENCL_INCLUDE_DIRS})
+  set (IM_SRC ${IM_SRC} densities_opencl.cpp
+                        tools_opencl.cpp)
+  set (IM_LIBS ${IM_LIBS} ${OPENCL_LIBRARIES})
+  add_definitions(-DUSE_OPENCL)
+else()
+  message(STATUS "  Acceleration: using OpenMP")
+  set (IM_SRC ${IM_SRC} densities_omp.cpp)
+endif()
 
-target_link_libraries(im
-                      ${Boost_LIBRARIES}
-                      ${OPENCL_LIBRARIES}
-                      coords_file)
+
+add_executable(im ${IM_SRC})
+
+target_link_libraries(im ${IM_LIBS})
 
 install(TARGETS im RUNTIME DESTINATION .)
 

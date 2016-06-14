@@ -52,11 +52,9 @@ int main(int argc, char* argv[]) {
         "        amise (AMISE),\n"
         "        hestimate (bandwidth estimation)")
 
-      ("col,c", po::value<unsigned int>()->default_value(0),
-        "selected column")
-      ("columns,C", po::value<std::string>()->default_value(""),
+      ("columns,c", po::value<std::string>()->default_value(""),
         "column selection, space separated indices;\n"
-        "e.g. -C \"1 3 5\" for first, third and fifth columns\n"
+        "e.g. -c \"1 3 5\" for first, third and fifth columns\n"
         "(default: read all)")
       ("bandwidths,H", po::value<std::string>()->default_value(""),
         "bandwidths for univariate density estimation"

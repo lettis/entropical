@@ -155,29 +155,29 @@ namespace {
 std::vector<float>
 combined_densities(const float* coords
                  , std::size_t n_rows
-                 , std::vector<std::size_t> i_col
+                 , std::vector<std::size_t> i_cols
                  , std::vector<float> h) {
-  std::size_t n_dim = i_col.size();
+  std::size_t n_dim = i_cols.size();
   assert(1 <= n_dim
       && n_dim <= 3
       && n_dim == h.size());
   std::vector<float> sorted_coords = Tools::dim1_sorted_coords(coords
                                                              , n_rows
-                                                             , i_col);
+                                                             , i_cols);
   switch(n_dim) {
     case 1:
       return densities_1d(coords
-                        , i_col
+                        , i_cols
                         , sorted_coords
                         , h);
     case 2:
       return densities_2d(coords
-                        , i_col
+                        , i_cols
                         , sorted_coords
                         , h);
     case 3:
       return densities_3d(coords
-                        , i_col
+                        , i_cols
                         , sorted_coords
                         , h);
     default:

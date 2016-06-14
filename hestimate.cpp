@@ -24,20 +24,13 @@ namespace Hestimate {
   main(boost::program_options::variables_map args) {
     Tools::IO::set_out(args["output"].as<std::string>());
     std::string fname_input = args["input"].as<std::string>();
-    unsigned int col = args["col"].as<unsigned int>();
-
+    std::vector<std::size_t> selected_cols;
     float* coords;
     std::size_t n_rows;
     std::size_t n_cols;
-    if (col == 0) {
-      // read all columns
-      std::tie(coords, n_rows, n_cols) =
-          Tools::IO::read_coords<float>(fname_input, 'C');
-    } else {
-      // read only specified column
-      std::tie(coords, n_rows, n_cols) =
-          Tools::IO::read_coords<float>(fname_input, 'C', {col-1});
-    }
+    std::tie(selected_cols, coords, n_rows, n_cols)
+      = Tools::IO::selected_coords<float>(fname_input
+                                        , args["columns"].as<std::string>());
     // write bandwidth estimation to 'out'
     for (std::size_t i_col=0; i_col < n_cols; ++i_col) {
       Tools::IO::out() << " " << silverman(coords, n_rows, i_col);

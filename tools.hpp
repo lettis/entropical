@@ -218,6 +218,18 @@ namespace Tools {
     std::tuple<std::vector<std::size_t>, NUM*, std::size_t, std::size_t>
     selected_coords(std::string filename
                   , std::string columns);
+    template <typename NUM>
+    /**
+     * like 'selected_coords', but additionally with bandwidths.
+     */
+    std::tuple<std::vector<std::size_t>
+             , NUM*
+             , std::size_t
+             , std::size_t
+             , std::vector<NUM>>
+    selected_coords_bandwidths(std::string fname_coords
+                             , std::string columns
+                             , std::string fname_bandwidths);
     /**
      * free memory pointing to coordinates
      */

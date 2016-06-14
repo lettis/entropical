@@ -91,6 +91,7 @@ namespace Dens {
 
   void
   main(boost::program_options::variables_map args) {
+    using Tools::IO::selected_coords_bandwidths;
     Tools::IO::set_out(args["output"].as<std::string>());
     std::string fname_input = args["input"].as<std::string>();
     // read data
@@ -98,21 +99,15 @@ namespace Dens {
     float* coords;
     std::size_t n_rows;
     std::size_t n_cols;
-    std::tie(selected_cols, coords, n_rows, n_cols)
-      = Tools::IO::selected_coords<float>(fname_input
-                                        , args["columns"].as<std::string>());
     std::vector<float> bandwidths;
-    using Tools::String::split;
-    for (std::string h: split(args["bandwidths"].as<std::string>()
-                            , ' '
-                            , true)) {
-      bandwidths.push_back(std::stof(h));
-    }
-    if (bandwidths.size() != selected_cols.size()) {
-      std::cerr << "error: number of given bandwidth values does not match"
-                         " the number of selected columns!" << std::endl;
-      exit(EXIT_FAILURE);
-    }
+    std::tie(selected_cols
+           , coords
+           , n_rows
+           , n_cols
+           , bandwidths)
+      = selected_coords_bandwidths<float>(fname_input
+                                        , args["columns"].as<std::string>()
+                                        , args["bandwidths"].as<std::string>());
     // run computation
     std::vector<std::vector<float>> densities;
     densities = compute_densities(selected_cols

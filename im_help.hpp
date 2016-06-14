@@ -13,7 +13,17 @@ namespace IM {
       ""}
 
   , {"help-mi",
-      ""}
+      "mi - compute mutual information using 2D kernel density estimation\n"
+      "\n"
+      "options:\n"
+      "  -i [ --input ]      input file (required!)\n"
+      "  -H [ --bandwidths ] bandwidths for univariate density estimation\n"
+      "                      as space separated values. (required!)\n"
+      "  -o [ --output ]     output file (default: stdout)\n"
+      "  -c [ --columns ]    column selection, space separated indices;\n"
+      "                      e.g. -C \"1 3 5\" for first, third and fifth columns\n"
+      "                      (default: read all)\n"
+    }
 
   , {"help-dens",
       "dens - compute local probability densities using 1D kernel density estimation\n"
@@ -23,7 +33,7 @@ namespace IM {
       "  -H [ --bandwidths ] bandwidths for univariate density estimation\n"
       "                      as space separated values. (required!)\n"
       "  -o [ --output ]     output file (default: stdout)\n"
-      "  -C [ --columns ]    column selection, space separated indices;\n"
+      "  -c [ --columns ]    column selection, space separated indices;\n"
       "                      e.g. -C \"1 3 5\" for first, third and fifth columns\n"
       "                      (default: read all)\n"
     }
@@ -36,7 +46,7 @@ namespace IM {
       "  -H [ --bandwidths ] bandwidths for univariate density estimation\n"
       "                      as space separated values. (required!)\n"
       "  -o [ --output ]     output file (default: stdout)\n"
-      "  -C [ --columns ]    column selection, space separated indices;\n"
+      "  -c [ --columns ]    column selection, space separated indices;\n"
       "                      e.g. -C \"1 3 5\" for first, third and fifth columns\n"
       "                      (default: read all)\n"
     }
@@ -54,8 +64,9 @@ namespace IM {
       "options:\n"
       "  -i [ --input ]   input file (required!)\n"
       "  -o [ --output ]  output file (default: stdout)\n"
-      "  -c [ --col ]     column for which bandwidth should be estimated\n"
-      "                   (default: 0 = estimate for all columns)\n"
+      "  -c [ --columns ]    column selection, space separated indices;\n"
+      "                      e.g. -C \"1 3 5\" for first, third and fifth columns\n"
+      "                      (default: read all)\n"
     }
   };
 

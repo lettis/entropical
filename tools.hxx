@@ -102,9 +102,14 @@ namespace Tools {
       }
       std::sort(sorted_coords.begin(), sorted_coords.end());
     } else {
-      // sort on first index
       std::vector<std::vector<NUM>> c_tmp(n_rows
                                         , std::vector<float>(n_dim));
+      for (std::size_t i=0; i < n_rows; ++i) {
+        for (std::size_t j=0; j < n_dim; ++j) {
+          c_tmp[i][j] = coords[col_indices[j]*n_rows+i];
+        }
+      }
+      // sort on first index
       std::sort(c_tmp.begin()
               , c_tmp.end()
               , [] (const std::vector<NUM>& lhs
@@ -233,7 +238,45 @@ namespace IO {
     if (selected_cols.size() == 0) {
       selected_cols = Tools::range<std::size_t>(1, n_cols+1, 1);
     }
-    return std::make_tuple(selected_cols, coords, n_rows, n_cols);
+    return std::make_tuple(selected_cols
+                         , coords
+                         , n_rows
+                         , n_cols);
+  }
+
+  template <typename NUM>
+  std::tuple<std::vector<std::size_t>
+           , NUM*
+           , std::size_t
+           , std::size_t
+           , std::vector<NUM>>
+  selected_coords_bandwidths(std::string fname_coords
+                           , std::string columns
+                           , std::string bandwidths) {
+    std::vector<std::size_t> selected_cols;
+    NUM* coords;
+    std::size_t n_rows;
+    std::size_t n_cols;
+    std::tie(selected_cols, coords, n_rows, n_cols)
+      = Tools::IO::selected_coords<NUM>(fname_coords
+                                      , columns);
+    std::vector<NUM> hs;
+    using Tools::String::split;
+    for (std::string h: split(bandwidths
+                            , ' '
+                            , true)) {
+      hs.push_back(std::stof(h));
+    }
+    if (hs.size() != selected_cols.size()) {
+      std::cerr << "error: number of given bandwidth values does not match"
+                         " the number of selected columns!" << std::endl;
+      exit(EXIT_FAILURE);
+    }
+    return std::make_tuple(selected_cols
+                         , coords
+                         , n_rows
+                         , n_cols
+                         , hs);
   }
 
   template <typename NUM>

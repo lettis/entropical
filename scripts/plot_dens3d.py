@@ -15,12 +15,11 @@ dens = pd.read_table(sys.argv[1]
 dens = np.array(dens)
 dens = dens.reshape(int(dens.size/4), 4)
 
-Axes3D.scatter(dens[:,0]
-             , dens[:,1]
-             , dens[:,2]
-             , color=plt.cm.inferno(dens[:,3]/max(dens[:,3]))
-             , depthshade=True
-             , marker='.'
-             , s=0.3)
+ax.scatter(xs=dens[:,0]
+         , ys=dens[:,1]
+         , zs=dens[:,2]
+         , c=plt.cm.inferno(dens[:,3]/max(dens[:,3]))
+         , marker='.'
+         , s=50)
 plt.show()
 

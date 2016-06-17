@@ -2,6 +2,7 @@
 #include <iterator>
 #include <map>
 #include <algorithm>
+#include <sstream>
 
 #include <boost/accumulators/accumulators.hpp>
 #include <boost/accumulators/statistics/sum_kahan.hpp>

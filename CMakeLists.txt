@@ -9,7 +9,7 @@ if(CMATCH_STATIC_LINKING)
 endif(CMATCH_STATIC_LINKING)
 
 if (${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
-  set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
+  set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
   # profiling
   #set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -p")
   # debugging
@@ -68,13 +68,25 @@ if (${USE_OPENCL})
                         tools_opencl.cpp)
   set (IM_LIBS ${IM_LIBS} ${OPENCL_LIBRARIES})
   add_definitions(-DUSE_OPENCL)
+elseif(${USE_CUDA})
+  #set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} -O3 -Xcompiler -std=c++0x)
+  set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} -gencode arch=compute_35,code=compute_35)
+
+  message(STATUS "  Acceleration: using CUDA")
+  find_package(CUDA REQUIRED)
+  include_directories (${CUDA_INCLUDE_DIRS})
+  set (IM_SRC ${IM_SRC} densities_cuda.cu)
+  set (IM_LIBS ${IM_LIBS} ${CUDA_LIBRARIES})
 else()
   message(STATUS "  Acceleration: using OpenMP")
   set (IM_SRC ${IM_SRC} densities_omp.cpp)
 endif()
 
-
-add_executable(im ${IM_SRC})
+if(${USE_CUDA})
+  cuda_add_executable(im ${IM_SRC})
+else()
+  add_executable(im ${IM_SRC})
+endif()
 
 target_link_libraries(im ${IM_LIBS})
 

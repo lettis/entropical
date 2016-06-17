@@ -9,6 +9,8 @@
 #ifdef USE_OPENCL
   #include "tools_opencl.hpp"
   #include "densities_opencl.hpp"
+#elif USE_CUDA
+  #include "densities_cuda.hpp"
 #else
   #include "densities_omp.hpp"
 #endif

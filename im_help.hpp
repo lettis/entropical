@@ -36,6 +36,8 @@ namespace IM {
       "  -c [ --columns ]    column selection, space separated indices;\n"
       "                      e.g. -C \"1 3 5\" for first, third and fifth columns\n"
       "                      (default: read all)\n"
+      "  -D [--dim]          dimensionality of kernel (1, 2 or 3; default: 1)\n"
+      "                      choosing 2 or 3 computes combined probabilities\n"
     }
 
   , {"help-negs",

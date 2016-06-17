@@ -6,14 +6,23 @@
 namespace Dens {
 
   /**
-   * Compute densities for given observables.
+   * Compute 1D-densities for given observables.
    * Runs in parallel on all available GPUs.
    */
   std::vector<std::vector<float>>
-  compute_densities(std::vector<std::size_t> selected_cols
-                  , const float* coords
-                  , std::size_t n_rows
-                  , std::vector<float> bandwidths);
+  compute_densities_1d(std::vector<std::size_t> selected_cols
+                     , const float* coords
+                     , std::size_t n_rows
+                     , std::vector<float> bandwidths);
+
+  /**
+   * Compute 2D-densities for given observables.
+   */
+  std::tuple<std::vector<std::vector<float>>, std::vector<std::string>>
+  compute_densities_2d(std::vector<std::size_t> selected_cols
+                     , const float* coords
+                     , std::size_t n_rows
+                     , std::vector<float> bandwidths);
 
   /**
    * Check command line options, read input,

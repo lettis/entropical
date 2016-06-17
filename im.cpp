@@ -59,6 +59,8 @@ int main(int argc, char* argv[]) {
       ("bandwidths,H", po::value<std::string>()->default_value(""),
         "bandwidths for univariate density estimation"
         " as space separated values.")
+      ("dim,D", po::value<unsigned int>()->default_value(1),
+        "kernel dimensionality for multivariate density estimation (dens)")
 //      ("tau,t", po::value<unsigned int>()->default_value(1),
 //        "lagtime for transfer entropy calculation (in # frames; default: 1).")
 

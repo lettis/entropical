@@ -33,10 +33,10 @@ namespace Negs {
     }
     // compute densities on GPUs
     std::vector<std::vector<float>> densities;
-    densities = Dens::compute_densities(selected_cols
-                                      , coords
-                                      , n_rows
-                                      , bandwidths);
+    densities = Dens::compute_densities_1d(selected_cols
+                                         , coords
+                                         , n_rows
+                                         , bandwidths);
     // compute partial negentropies
     std::size_t n_sel_cols = selected_cols.size();
     std::size_t i, j;

@@ -30,8 +30,8 @@ int main(int argc, char* argv[]) {
     " [OPTIONS]\n\n"
     "compute information measures like local probabilities,"
     " mutual information, information transfer, etc.\n"
-#ifdef USE_OPENCL
-    "code is accelerated by OpenCL on GPUs.\n\n"
+#ifdef USE_CUDA
+    "code is accelerated by CUDA on Nvidia-GPUs.\n\n"
 #else
     "code is accelerated by OpenMP on CPU.\n\n"
 #endif

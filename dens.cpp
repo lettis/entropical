@@ -6,10 +6,7 @@
 
 #include "dens.hpp"
 
-#ifdef USE_OPENCL
-  #include "tools_opencl.hpp"
-  #include "densities_opencl.hpp"
-#elif USE_CUDA
+#ifdef USE_CUDA
   #include "densities_cuda.hpp"
 #else
   #include "densities_omp.hpp"
@@ -27,54 +24,14 @@ namespace Dens {
     std::vector<std::vector<float>> densities(selected_cols.size());
     unsigned int n_selected_cols = selected_cols.size();
     unsigned int j;
-#ifdef USE_OPENCL
-    //// compute probability densities with OpenCL on GPU(s)
-    // setup OpenCL environment
-    std::vector<Tools::OCL::GPUElement> gpus = Tools::OCL::gpus();
-    std::size_t n_gpus = gpus.size();
-    if (n_gpus == 0) {
-      Tools::OCL::print_no_gpus_errmsg();
-      exit(EXIT_FAILURE);
-    }
-    // TODO: workgroup size is hard-coded to optimum for GeForce GTX-960.
-    //       this has to be changed to a relative value of max(wgsize).
-    unsigned int wgsize1d = 128;
-    // compute densities on available GPUs
-    unsigned int n_wg = prepare_gpus(gpus
-                                   , wgsize1d
-                                   , n_rows
-                                   , 1);
-    unsigned int thread_id;
-    #pragma omp parallel for default(none)\
-                             private(j,thread_id)\
-                             firstprivate(n_selected_cols,n_rows,\
-                                          n_wg,wgsize1d)\
-                             shared(coords,selected_cols,gpus,\
-                                    densities,bandwidths)\
-                             num_threads(n_gpus)\
-                             schedule(dynamic,1)
-    for (j=0; j < n_selected_cols; ++j) {
-      thread_id = omp_get_thread_num();
-      densities[j] = combined_densities(&gpus[thread_id]
-                                      , coords
-                                      , n_rows
-                                      , {j}
-                                      , {bandwidths[j]}
-                                      , n_wg
-                                      , wgsize1d);
-    }
-    for (Tools::OCL::GPUElement& gpu: gpus) {
-      Tools::OCL::cleanup_gpu(&gpu);
-    }
-#else
     //// compute probability densities with OpenMP on CPU
     for (unsigned int j=0; j < n_selected_cols; ++j) {
       densities[j] = combined_densities(coords
                                       , n_rows
                                       , {j}
-                                      , {bandwidths[j]});
+                                      , {bandwidths[j]}
+                                      , {0});
     }
-#endif
     // normalize densities
     unsigned int i;
     float sum;
@@ -90,8 +47,6 @@ namespace Dens {
     }
     return densities;
   }
-
-
 
   std::tuple<std::vector<std::vector<float>>, std::vector<std::string>>
   compute_densities_2d(std::vector<std::size_t> selected_cols
@@ -110,7 +65,8 @@ namespace Dens {
                                                       , {i
                                                         ,j}
                                                       , {bandwidths[i]
-                                                       , bandwidths[j]});
+                                                       , bandwidths[j]}
+                                                      , {0});
         densities.push_back(dens_ij);
         labels.push_back(std::to_string(selected_cols[i])
                        + "_"

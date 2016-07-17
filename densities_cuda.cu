@@ -158,21 +158,11 @@ namespace {
     } else {
       p_wg[tid] = 0.0f;
     }
-    for (stride=WGSIZE/2; stride > 32; stride /= 2) {
+    for (stride=WGSIZE/2; stride > 0; stride /= 2) {
       __syncthreads();
       if (tid < stride) {
         p_wg[tid] += p_wg[tid+stride];
       }
-    }
-    // unroll loop inside warp (intrinsic sync!)
-    __syncthreads();
-    if (tid < 32) {
-      p_wg[tid] += p_wg[tid+32];
-      p_wg[tid] += p_wg[tid+16];
-      p_wg[tid] += p_wg[tid+8];
-      p_wg[tid] += p_wg[tid+4];
-      p_wg[tid] += p_wg[tid+2];
-      p_wg[tid] += p_wg[tid+1];
     }
     if (tid == 0) {
       atomicAdd(&P[i_ref], p_wg[0] / ((float) n_wg));
@@ -210,8 +200,7 @@ combined_densities(const float* coords
   //TODO include lagtimes 'tau' in coord preparation and densities
   std::vector<float> sorted_coords = Tools::dim1_sorted_coords(coords
                                                              , n_rows
-                                                             , i_cols
-                                                             , tau);
+                                                             , i_cols);
   // create buffers on device
   unsigned int n_blocks = Tools::min_multiplicator(n_rows
                                                  , WGSIZE);

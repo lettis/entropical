@@ -15,6 +15,9 @@ namespace Mi {
   void
   main(boost::program_options::variables_map args) {
     // Mutual information: I(X,Y) = \sum_x \sum_y p(x,y) log(p(x,y) / p(x) / p(y))
+
+
+/*
     using Tools::IO::selected_coords_bandwidths;
     Tools::IO::set_out(args["output"].as<std::string>());
     std::string fname_input = args["input"].as<std::string>();
@@ -67,6 +70,7 @@ namespace Mi {
 
     // output: MI
     //TODO
+*/
   }
 
 } // end namespace 'Mi'

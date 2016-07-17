@@ -36,9 +36,6 @@ add_subdirectory(coords_file)
 find_package(Boost 1.49 COMPONENTS program_options REQUIRED)
 include_directories (${Boost_INCLUDE_DIR})
 
-#set (OpenCL_INCPATH "/usr/local/cuda/include")
-#set (OpenCL_LIBPATH "/usr/local/cuda/lib64")
-
 set(IM_SRC im.cpp
            im_help.cpp
            mi.cpp
@@ -60,23 +57,14 @@ else()
 endif()
 
 
-if (${USE_OPENCL})
-  message(STATUS "  Acceleration: using OpenCL")
-  find_package(OpenCL REQUIRED)
-  include_directories (${OPENCL_INCLUDE_DIRS})
-  set (IM_SRC ${IM_SRC} densities_opencl.cpp
-                        tools_opencl.cpp)
-  set (IM_LIBS ${IM_LIBS} ${OPENCL_LIBRARIES})
-  add_definitions(-DUSE_OPENCL)
-elseif(${USE_CUDA})
-  set(CUDA_PROPAGATE_HOST_FLAGS OFF)
-  set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} "-std=c++11;-O3;-DVERBOSE")
-
+if(${USE_CUDA})
   message(STATUS "  Acceleration: using CUDA")
   find_package(CUDA REQUIRED)
-  include_directories (${CUDA_INCLUDE_DIRS})
+  set(CUDA_PROPAGATE_HOST_FLAGS OFF)
+  set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} "-std=c++11;-O3;-DVERBOSE")
   set (IM_SRC ${IM_SRC} densities_cuda.cu)
   set (IM_LIBS ${IM_LIBS} ${CUDA_LIBRARIES})
+  include_directories (${CUDA_INCLUDE_DIRS})
   add_definitions(-DUSE_CUDA)
 else()
   message(STATUS "  Acceleration: using OpenMP")

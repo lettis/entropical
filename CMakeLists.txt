@@ -2,11 +2,8 @@
 cmake_minimum_required (VERSION 2.8)
 project (transs)
 
-# enable static linking by
-#  cmake [...] -DCMATCH_STATIC_LINKING=ON
-if(CMATCH_STATIC_LINKING)
-  set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
-endif(CMATCH_STATIC_LINKING)
+# enable static linking
+set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
 
 if (${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
   set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
@@ -79,5 +76,5 @@ endif()
 
 target_link_libraries(im ${IM_LIBS})
 
-install(TARGETS im RUNTIME DESTINATION .)
+install(TARGETS im DESTINATION .)
 

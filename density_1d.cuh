@@ -28,41 +28,30 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "tools.cuh"
 #include <omp.h>
 
-/***************************************************************************
 
-CUDA-template with implicit parallelization over all available GPUs for the
-computation of pairwise interactions of given coordinates,
-i.e. N^2 computations with N the number of rows (= observations).
+__device__ float
+epa(float x
+  , float ref_scaled_neg
+  , float h_inv) {
+  float p = fma(h_inv, x, ref_scaled_neg);
+  p *= p;
+  if (p <= 1.0f) {
+    p = h_inv * fma(p, -0.75f, 0.75f);
+  } else {
+    p = 0.0f;
+  }
+  return p;
+}
 
-Input coordinates are assumed to be in row-major order, i.e. of
-format [i * n_columns + j] with i being the row-index and j the column-index.
 
-For simple tasks with sum-accumulation, it should suffice to implement the
-actual function for the pairwise interaction between the frames 'i_ref' and
-'i_cache' of the cached coordinates with 'n_cols' columns.
-The end result will be a vector of size n_rows (i.e. the number of rows of
-the original data) with summed pairwise interactions per frame.
-
-For not-so-simple tasks, just alter the underlying functions.
-The overall architecture should still provide a good framework.
-
-Call tree:
-  pairwise (called on host by user)
-    -> pairwise_per_gpu (automatically called on host, splits work into
-                         packages to be solved in parallel on all available
-                         GPUs)
-    -> pairwise_krnl (kernel function called on GPU, automatically called)
-    -> pairwise_interaction (user-coded interaction, automatically called)
-
-***************************************************************************/
 
 template <typename type_in
         , typename type_out>
 __device__ type_out
-pairwise_interaction(type_in* cache
-                   , unsigned int n_cols
-                   , unsigned int i_ref
-                   , unsigned int i_cache) {
+density_1d_interaction(type_in* cache
+                     , unsigned int n_cols
+                     , unsigned int i_ref
+                     , unsigned int i_cache) {
  //TODO: implement me!
 }
 
@@ -71,19 +60,19 @@ pairwise_interaction(type_in* cache
 template <typename type_in
         , typename type_out>
 __global__ void
-pairwise_krnl(unsigned int i_offset
-            , unsigned int i_from
-            , unsigned int i_to
-            , type_in* coords
-            , unsigned int n_rows
-            , unsigned int n_cols
-            , type_out* results) {
+density_1d_krnl(unsigned int i_offset
+              , unsigned int i_from
+              , unsigned int i_to
+              , type_in* coords
+              , unsigned int n_rows
+              , unsigned int n_cols
+              , type_out* results) {
   extern __shared__ type_in smem[];
   unsigned int bid = blockIdx.x;
   unsigned int tid = threadIdx.x;
   unsigned int bsize = blockDim.x;
   unsigned int gid = bid * bsize + tid + i_from;
-  // load coords for pairwise interaction computation
+  // load coords for density_1d interaction computation
   // into shared memory
   int n_cache_rows = min(bsize, n_rows-i_offset);
   if (tid < n_cache_rows) {
@@ -92,21 +81,21 @@ pairwise_krnl(unsigned int i_offset
     }
   }
   __syncthreads();
-  // compute pairwise interaction
+  // compute density_1d interaction
   if (gid < i_to) {
     unsigned int i_ref = tid + bsize;
     // load reference for re-use into shared memory
     for (unsigned int j=0; j < n_cols; ++j) {
       smem[i_ref*n_cols+j] = coords[gid*n_cols+j];
     }
-    // accumulate pairwise interactions between
+    // accumulate density_1d interactions between
     // reference and cached coordinates
     type_out acc = 0;
     for (unsigned int i=0; i < n_cache_rows; ++i) {
-      acc += pairwise_interaction(smem
-                                , n_cols
-                                , i_ref
-                                , i);
+      acc += density_1d_interaction(smem
+                                  , n_cols
+                                  , i_ref
+                                  , i);
     }
     results[gid] += acc;
   }
@@ -118,12 +107,12 @@ template <typename type_in
         , typename type_out
         , unsigned int blocksize>
 std::vector<type_out>
-pairwise_per_gpu(const type_in* coords
-               , unsigned int n_rows
-               , unsigned int n_cols
-               , unsigned int i_from
-               , unsigned int i_to
-               , unsigned int i_gpu) {
+density_1d_per_gpu(const type_in* coords
+                 , unsigned int n_rows
+                 , unsigned int n_cols
+                 , unsigned int i_from
+                 , unsigned int i_to
+                 , unsigned int i_gpu) {
   // GPU setup
   cudaSetDevice(i_gpu);
   type_in* d_coords;
@@ -152,21 +141,21 @@ pairwise_per_gpu(const type_in* coords
               << std::endl;
     exit(EXIT_FAILURE);
   }
-  unsigned int blockrange = (i_to - i_from) / blocksize;
+  unsigned int blockrange = (i_to-i_from) / blocksize;
   if (blockrange*blocksize < (i_to-i_from)) {
     ++blockrange;
   }
   // run computation
   for (unsigned int i=0; i*blocksize < n_rows; ++i) {
-    pairwise_krnl <<< blockrange
-                    , blocksize
-                    , shared_mem >>> (i*blocksize
-                                    , i_from
-                                    , i_to
-                                    , d_coords
-                                    , n_rows
-                                    , n_cols
-                                    , d_results);
+    density_1d_krnl <<< blockrange
+                      , blocksize
+                      , shared_mem >>> (i*blocksize
+                                      , i_from
+                                      , i_to
+                                      , d_coords
+                                      , n_rows
+                                      , n_cols
+                                      , d_results);
   }
   cudaDeviceSynchronize();
   check_error("kernel loop");
@@ -184,7 +173,7 @@ pairwise_per_gpu(const type_in* coords
 
 template <typename type_out>
 std::vector<type_out> 
-pairwise_reduce(std::vector<type_out>& partial_results) {
+density_1d_reduce(std::vector<type_out>& partial_results) {
   unsigned int n_rows = partial_results[0].size();
   std::vector<type_out> results(n_rows);
   for (std::vector<type_out>& part: partial_results) {
@@ -209,6 +198,8 @@ density_1d(const type_in* coords
     exit(EXIT_FAILURE);
   }
   int gpurange = n_rows / n_gpus;
+  //TODO: check gpurange against n_rows & max blocksize,
+  //      if too large: split further into smaller chunks
   int i_gpu;
   std::vector<type_out> partial_results(n_gpus);
   #pragma omp parallel for default(none)\
@@ -218,15 +209,15 @@ density_1d(const type_in* coords
     num_threads(n_gpus)\
     schedule(dynamice,1)
   for (i_gpu=0; i_gpu < n_gpus; ++i_gpu) {
-    partial_results[i_gpu] = pairwise_per_gpu(coords
-                                            , n_rows
-                                            , n_cols
-                                            , i_gpu*gpurange
-                                            , i_gpu == (n_gpus-1)
-                                                ? n_rows
-                                                : (i_gpu+1)*gpurange
-                                            , i_gpu);
+    partial_results[i_gpu] = density_1d_per_gpu(coords
+                                              , n_rows
+                                              , n_cols
+                                              , i_gpu*gpurange
+                                              , i_gpu == (n_gpus-1)
+                                                  ? n_rows
+                                                  : (i_gpu+1)*gpurange
+                                              , i_gpu);
   }
-  return pairwise_reduce(partial_results);
+  return density_1d_reduce(partial_results);
 }
 

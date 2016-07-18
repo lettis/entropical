@@ -35,12 +35,20 @@ combined_densities(const float* coords
   for (std::size_t n=0; n < n_dim; ++n) {
     h_inv[n] = 1.0f/h[n];
   }
-  //TODO create filtered coords (row-major order)
-
-
+  // create filtered coords (row-major order)
+  // from original coords (col-major order)
+  std::vector<float> sel_coords(n_rows*n_dim);
+  for (unsigned int i=0; i < n_rows; ++i) {
+    for (unsigned int j=0; j < n_dim; ++j) {
+      sel_coords[i*n_dim+j] = coords[i_cols[j]*n_rows+i];
+    }
+  }
   switch(n_dim) {
     1:
-      return density_1d();
+      return density_1d(sel_coords.data()
+                      , n_rows
+                      , 1
+                      , h_inv);
     2:
       //TODO implement
       return {};

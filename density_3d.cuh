@@ -32,7 +32,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 template <typename type_in
         , typename type_out>
 __device__ type_out
-density_1d_interaction(type_in* cache
+density_3d_interaction(type_in* cache
                      , unsigned int i_ref
                      , unsigned int i_cache
                      , type_in h_inv) {
@@ -51,7 +51,7 @@ density_1d_interaction(type_in* cache
 template <typename type_in
         , typename type_out>
 __global__ void
-density_1d_krnl(unsigned int i_offset
+density_3d_krnl(unsigned int i_offset
               , unsigned int i_from
               , unsigned int i_to
               , type_in* coords
@@ -63,23 +63,23 @@ density_1d_krnl(unsigned int i_offset
   unsigned int tid = threadIdx.x;
   unsigned int bsize = blockDim.x;
   unsigned int gid = bid * bsize + tid + i_from;
-  // load coords for density_1d interaction computation
+  // load coords for density_3d interaction computation
   // into shared memory
   int n_cache_rows = min(bsize, n_rows-i_offset);
   if (tid < n_cache_rows) {
     smem[tid] = h_inv * coords[tid+i_offset];
   }
   __syncthreads();
-  // compute density_1d interaction
+  // compute density_3d interaction
   if (gid < i_to) {
     unsigned int i_ref = tid + bsize;
     // load reference for re-use into shared memory
     smem[i_ref] = h_inv * coords[gid];
-    // accumulate density_1d interactions between
+    // accumulate density_3d interactions between
     // reference and cached coordinates
     type_out acc = 0;
     for (unsigned int i=0; i < n_cache_rows; ++i) {
-      acc += density_1d_interaction <type_in
+      acc += density_3d_interaction <type_in
                                    , type_out> (smem
                                               , i_ref
                                               , i
@@ -95,7 +95,7 @@ template <typename type_in
         , typename type_out
         , unsigned int blocksize>
 std::vector<type_out>
-density_1d_per_gpu(const type_in* coords
+density_3d_per_gpu(const type_in* coords
                  , unsigned int n_rows
                  , type_in h_inv
                  , unsigned int i_from
@@ -135,7 +135,7 @@ density_1d_per_gpu(const type_in* coords
   }
   // run computation
   for (unsigned int i=0; i*blocksize < n_rows; ++i) {
-    density_1d_krnl <<< blockrange
+    density_3d_krnl <<< blockrange
                       , blocksize
                       , shared_mem >>> (i*blocksize
                                       , i_from
@@ -161,7 +161,7 @@ density_1d_per_gpu(const type_in* coords
 
 template <typename type_out>
 std::vector<type_out> 
-density_1d_reduce(std::vector<std::vector<type_out>>& partial_results) {
+density_3d_reduce(std::vector<std::vector<type_out>>& partial_results) {
   unsigned int n_rows = partial_results[0].size();
   std::vector<type_out> results(n_rows);
   for (std::vector<type_out>& part: partial_results) {
@@ -176,7 +176,7 @@ template <typename type_in
         , typename type_out
         , unsigned int blocksize>
 std::vector<type_out>
-density_1d(const type_in* coords
+density_3d(const type_in* coords
          , unsigned int n_rows
          , std::vector<float> h_inv) {
   int n_gpus;
@@ -198,7 +198,7 @@ density_1d(const type_in* coords
     schedule(dynamic,1)
   for (i_gpu=0; i_gpu < n_gpus; ++i_gpu) {
     partial_results[i_gpu] =
-      density_1d_per_gpu <type_in
+      density_3d_per_gpu <type_in
                         , type_out
                         , blocksize> (coords
                                     , n_rows
@@ -209,6 +209,6 @@ density_1d(const type_in* coords
                                         : (i_gpu+1)*gpurange
                                     , i_gpu);
   }
-  return density_1d_reduce(partial_results);
+  return density_3d_reduce(partial_results);
 }
 

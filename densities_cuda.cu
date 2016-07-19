@@ -3,6 +3,7 @@
 #include "tools.hpp"
 
 #include "density_1d.cuh"
+#include "density_2d.cuh"
 
 #define BSIZE 128
 
@@ -36,6 +37,9 @@ combined_densities(const float* coords
   for (std::size_t n=0; n < n_dim; ++n) {
     h_inv[n] = 1.0f/h[n];
   }
+
+//TODO coord prep for 2d, 3d
+
   // create filtered coords (row-major order)
   // from original coords (col-major order)
   std::vector<float> sel_coords(n_rows*n_dim);
@@ -44,24 +48,36 @@ combined_densities(const float* coords
       sel_coords[i*n_dim+j] = coords[i_cols[j]*n_rows+i];
     }
   }
+//TODO pre-sort and boxing (-> adapt i_from,i_to based on boxed values
+//                             of current ref-block)
+  std::function<
+    std::vector<float>(float*
+                     , unsigned int
+                     , std::vector<float>)> dens_func;
   switch(n_dim) {
   case 1:
-    //TODO pre-sort and boxing (-> adapt i_from,i_to based on boxed values
-    //                             of current ref-block)
-    return density_1d<float
-                    , float
-                    , BSIZE> (sel_coords.data()
-                            , n_rows
-                            , h_inv);
+    dens_func = &density_1d<float
+                          , float
+                          , BSIZE>;
+    break;
   case 2:
     //TODO implement
-    return {};
+    dens_func = &density_2d<float
+                          , float
+                          , BSIZE>;
+    break;
   case 3:
     //TODO implement
-    return {};
+    dens_func = &density_3d<float
+                          , float
+                          , BSIZE>;
+    break;
   default:
-    std::cerr << "error: in # of dim! this should never happen!" <<std::endl;
+    std::cerr << "error: in # of dim! this should never happen!" << std::endl;
     exit(EXIT_FAILURE);
   }
+  return dens_func(sel_coords.data()
+                 , n_rows
+                 , h_inv);
 }
 

@@ -29,30 +29,21 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <omp.h>
 
 
-__device__ float
-epa(float x
-  , float ref_scaled_neg
-  , float h_inv) {
-  float p = fma(h_inv, x, ref_scaled_neg);
-  p *= p;
-  if (p <= 1.0f) {
-    p = h_inv * fma(p, -0.75f, 0.75f);
-  } else {
-    p = 0.0f;
-  }
-  return p;
-}
-
-
-
 template <typename type_in
         , typename type_out>
 __device__ type_out
 density_1d_interaction(type_in* cache
-                     , unsigned int n_cols
                      , unsigned int i_ref
-                     , unsigned int i_cache) {
- //TODO: implement me!
+                     , unsigned int i_cache
+                     , type_in h_inv) {
+  type_in p = cache[i_ref] - cache[i_cache];
+  p *= p;
+  if (p <= 1) {
+    p = h_inv * fma(p, -0.75, 0.75);
+  } else {
+    p = 0;
+  }
+  return p;
 }
 
 ////////////////////////////////////////////////////////////
@@ -65,7 +56,7 @@ density_1d_krnl(unsigned int i_offset
               , unsigned int i_to
               , type_in* coords
               , unsigned int n_rows
-              , unsigned int n_cols
+              , type_in h_inv
               , type_out* results) {
   extern __shared__ type_in smem[];
   unsigned int bid = blockIdx.x;
@@ -76,26 +67,23 @@ density_1d_krnl(unsigned int i_offset
   // into shared memory
   int n_cache_rows = min(bsize, n_rows-i_offset);
   if (tid < n_cache_rows) {
-    for (unsigned int j=0; j < n_cols; ++j) {
-      smem[tid*n_cols+j] = coords[(tid+i_offset)*n_cols+j];
-    }
+    smem[tid] = h_inv * coords[tid+i_offset];
   }
   __syncthreads();
   // compute density_1d interaction
   if (gid < i_to) {
     unsigned int i_ref = tid + bsize;
     // load reference for re-use into shared memory
-    for (unsigned int j=0; j < n_cols; ++j) {
-      smem[i_ref*n_cols+j] = coords[gid*n_cols+j];
-    }
+    smem[i_ref] = h_inv * coords[gid];
     // accumulate density_1d interactions between
     // reference and cached coordinates
     type_out acc = 0;
     for (unsigned int i=0; i < n_cache_rows; ++i) {
-      acc += density_1d_interaction(smem
-                                  , n_cols
-                                  , i_ref
-                                  , i);
+      acc += density_1d_interaction <type_in
+                                   , type_out> (smem
+                                              , i_ref
+                                              , i
+                                              , h_inv);
     }
     results[gid] += acc;
   }
@@ -109,7 +97,7 @@ template <typename type_in
 std::vector<type_out>
 density_1d_per_gpu(const type_in* coords
                  , unsigned int n_rows
-                 , unsigned int n_cols
+                 , type_in h_inv
                  , unsigned int i_from
                  , unsigned int i_to
                  , unsigned int i_gpu) {
@@ -118,7 +106,7 @@ density_1d_per_gpu(const type_in* coords
   type_in* d_coords;
   type_out* d_results;
   cudaMalloc((void**) &d_coords
-           , sizeof(type_in) * n_rows * n_cols);
+           , sizeof(type_in) * n_rows);
   cudaMalloc((void**) &d_results
            , sizeof(type_out) * n_rows);
   cudaMemset(d_results
@@ -126,7 +114,7 @@ density_1d_per_gpu(const type_in* coords
            , sizeof(type_out) * n_rows);
   cudaMemcpy(d_coords
            , coords
-           , sizeof(type_in) * n_rows * n_cols
+           , sizeof(type_in) * n_rows
            , cudaMemcpyHostToDevice);
   // determine memory size and block dimensions
   int max_shared_mem;
@@ -134,7 +122,7 @@ density_1d_per_gpu(const type_in* coords
                        , cudaDevAttrMaxSharedMemoryPerBlock
                        , i_gpu);
   check_error("getting info: max. shared memory on gpu");
-  unsigned int shared_mem = 2 * blocksize * n_cols * sizeof(type_in);
+  unsigned int shared_mem = 2 * blocksize * sizeof(type_in);
   if (shared_mem > max_shared_mem) {
     std::cerr << "error: max. shared mem per block too small on this GPU.\n"
               << "       either reduze blocksize or get a better GPU."
@@ -147,6 +135,8 @@ density_1d_per_gpu(const type_in* coords
   }
   // run computation
   for (unsigned int i=0; i*blocksize < n_rows; ++i) {
+    //TODO pre-sort and boxing (-> adapt i_from,i_to based on boxed values
+    //                             of current ref-block)
     density_1d_krnl <<< blockrange
                       , blocksize
                       , shared_mem >>> (i*blocksize
@@ -154,7 +144,7 @@ density_1d_per_gpu(const type_in* coords
                                       , i_to
                                       , d_coords
                                       , n_rows
-                                      , n_cols
+                                      , h_inv
                                       , d_results);
   }
   cudaDeviceSynchronize();
@@ -173,11 +163,11 @@ density_1d_per_gpu(const type_in* coords
 
 template <typename type_out>
 std::vector<type_out> 
-density_1d_reduce(std::vector<type_out>& partial_results) {
+density_1d_reduce(std::vector<std::vector<type_out>>& partial_results) {
   unsigned int n_rows = partial_results[0].size();
   std::vector<type_out> results(n_rows);
   for (std::vector<type_out>& part: partial_results) {
-    for (unsigned int i; i < n_rows; ++i) {
+    for (unsigned int i=0; i < n_rows; ++i) {
       results[i] += part[i];
     }
   }
@@ -190,33 +180,36 @@ template <typename type_in
 std::vector<type_out>
 density_1d(const type_in* coords
          , unsigned int n_rows
-         , unsigned int n_cols) {
+         , std::vector<type_in> h_inv) {
   int n_gpus;
   cudaGetDeviceCount(&n_gpus);
   if (n_gpus == 0) {
-    std::cerr << "error: nu CUDA-compatible GPUs found" << std::endl;
+    std::cerr << "error: no CUDA-compatible GPUs found" << std::endl;
     exit(EXIT_FAILURE);
   }
   int gpurange = n_rows / n_gpus;
   //TODO: check gpurange against n_rows & max blocksize,
   //      if too large: split further into smaller chunks
   int i_gpu;
-  std::vector<type_out> partial_results(n_gpus);
+  std::vector<std::vector<type_out>> partial_results(n_gpus);
   #pragma omp parallel for default(none)\
     private(i_gpu)\
-    firstprivate(n_gpus,n_rows,n_cols,gpurange)\
-    shared(partial_results,coords)\
+    firstprivate(n_gpus,n_rows,gpurange)\
+    shared(partial_results,coords,h_inv)\
     num_threads(n_gpus)\
-    schedule(dynamice,1)
+    schedule(dynamic,1)
   for (i_gpu=0; i_gpu < n_gpus; ++i_gpu) {
-    partial_results[i_gpu] = density_1d_per_gpu(coords
-                                              , n_rows
-                                              , n_cols
-                                              , i_gpu*gpurange
-                                              , i_gpu == (n_gpus-1)
-                                                  ? n_rows
-                                                  : (i_gpu+1)*gpurange
-                                              , i_gpu);
+    partial_results[i_gpu] =
+      density_1d_per_gpu <type_in
+                        , type_out
+                        , blocksize> (coords
+                                    , n_rows
+                                    , h_inv[0]
+                                    , i_gpu*gpurange
+                                    , i_gpu == (n_gpus-1)
+                                        ? n_rows
+                                        : (i_gpu+1)*gpurange
+                                    , i_gpu);
   }
   return density_1d_reduce(partial_results);
 }

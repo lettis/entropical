@@ -4,6 +4,7 @@
 
 #include "density_1d.cuh"
 
+#define BSIZE 128
 
 std::vector<float>
 combined_densities(const float* coords
@@ -11,7 +12,7 @@ combined_densities(const float* coords
                  , std::vector<std::size_t> i_cols
                  , std::vector<float> h
                  , std::vector<std::size_t> tau) {
-  std::size_t n_dim = i_cols.size();
+  unsigned int n_dim = i_cols.size();
   if (n_dim < 1 || 3 < n_dim) {
     std::cerr << "error: can only compute combined probabilities in 1, 2 or 3 "
               << "dimensions."
@@ -44,20 +45,23 @@ combined_densities(const float* coords
     }
   }
   switch(n_dim) {
-    1:
-      return density_1d(sel_coords.data()
-                      , n_rows
-                      , 1
-                      , h_inv);
-    2:
-      //TODO implement
-      return {};
-    3:
-      //TODO implement
-      return {};
-    default:
-      std::cerr << "error: in # of dim! this should never happen!" <<std::endl;
-      exit(EXIT_FAILURE);
+  case 1:
+    //TODO pre-sort and boxing (-> adapt i_from,i_to based on boxed values
+    //                             of current ref-block)
+    return density_1d<float
+                    , float
+                    , BSIZE> (sel_coords.data()
+                            , n_rows
+                            , h_inv);
+  case 2:
+    //TODO implement
+    return {};
+  case 3:
+    //TODO implement
+    return {};
+  default:
+    std::cerr << "error: in # of dim! this should never happen!" <<std::endl;
+    exit(EXIT_FAILURE);
   }
 }
 

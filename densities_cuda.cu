@@ -4,13 +4,44 @@
 
 #include "density_1d.cuh"
 #include "density_2d.cuh"
+#include "density_3d.cuh"
 
 #define BSIZE 128
 
 std::vector<float>
 combined_densities(const float* coords
                  , std::size_t n_rows
-                 , std::vector<std::size_t> i_cols
+                 , std::vector<unsigned int> i_cols
+                 , std::vector<float> h) {
+  unsigned int n_dim = i_cols.size();
+  std::vector<std::size_t> tau;
+  switch(n_dim) {
+    case 1:
+      tau = {0};
+      break;
+    case 2:
+      tau = {0, 0};
+      break;
+    case 3:
+      tau = {0, 0, 0};
+      break;
+    default:
+      std::cerr << "error: unsupported number of dimensions. this should "
+                << "never happen!"
+                << std::endl;
+      exit(EXIT_FAILURE);
+  }
+  return combined_densities(coords
+                          , n_rows
+                          , i_cols
+                          , h
+                          , tau);
+}
+
+std::vector<float>
+combined_densities(const float* coords
+                 , std::size_t n_rows
+                 , std::vector<unsigned int> i_cols
                  , std::vector<float> h
                  , std::vector<std::size_t> tau) {
   unsigned int n_dim = i_cols.size();
@@ -37,9 +68,6 @@ combined_densities(const float* coords
   for (std::size_t n=0; n < n_dim; ++n) {
     h_inv[n] = 1.0f/h[n];
   }
-
-//TODO coord prep for 2d, 3d
-
   // create filtered coords (row-major order)
   // from original coords (col-major order)
   std::vector<float> sel_coords(n_rows*n_dim);
@@ -48,8 +76,6 @@ combined_densities(const float* coords
       sel_coords[i*n_dim+j] = coords[i_cols[j]*n_rows+i];
     }
   }
-//TODO pre-sort and boxing (-> adapt i_from,i_to based on boxed values
-//                             of current ref-block)
   std::function<
     std::vector<float>(float*
                      , unsigned int
@@ -61,13 +87,11 @@ combined_densities(const float* coords
                           , BSIZE>;
     break;
   case 2:
-    //TODO implement
     dens_func = &density_2d<float
                           , float
                           , BSIZE>;
     break;
   case 3:
-    //TODO implement
     dens_func = &density_3d<float
                           , float
                           , BSIZE>;

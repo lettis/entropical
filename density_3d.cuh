@@ -35,11 +35,21 @@ __device__ type_out
 density_3d_interaction(type_in* cache
                      , unsigned int i_ref
                      , unsigned int i_cache
-                     , type_in h_inv) {
-  type_in p = cache[i_ref] - cache[i_cache];
-  p *= p;
-  if (p <= 1) {
-    p = h_inv * fma(p, -0.75, 0.75);
+                     , type_in h_inv1
+                     , type_in h_inv2
+                     , type_in h_inv3) {
+  type_in p1 = cache[i_ref*2] - cache[i_cache*2];
+  type_in p2 = cache[i_ref*2+1] - cache[i_cache*2+1];
+  type_in p3 = cache[i_ref*2+2] - cache[i_cache*2+2];
+  p1 *= p1;
+  p2 *= p2;
+  p3 *= p3;
+  float p;
+  if (p1 <= 1 && p2 <= 1 && p3 <= 1) {
+    p1 = h_inv1 * fma(p1, -0.75, 0.75);
+    p2 = h_inv2 * fma(p2, -0.75, 0.75);
+    p3 = h_inv3 * fma(p2, -0.75, 0.75);
+    p = p1 * p2 * p3;
   } else {
     p = 0;
   }
@@ -56,7 +66,9 @@ density_3d_krnl(unsigned int i_offset
               , unsigned int i_to
               , type_in* coords
               , unsigned int n_rows
-              , type_in h_inv
+              , type_in h_inv1
+              , type_in h_inv2
+              , type_in h_inv3
               , type_out* results) {
   extern __shared__ type_in smem[];
   unsigned int bid = blockIdx.x;
@@ -67,15 +79,19 @@ density_3d_krnl(unsigned int i_offset
   // into shared memory
   int n_cache_rows = min(bsize, n_rows-i_offset);
   if (tid < n_cache_rows) {
-    smem[tid] = h_inv * coords[tid+i_offset];
+    smem[tid*2  ] = h_inv1 * coords[(tid+i_offset)*2  ];
+    smem[tid*2+1] = h_inv2 * coords[(tid+i_offset)*2+1];
+    smem[tid*2+2] = h_inv2 * coords[(tid+i_offset)*2+2];
   }
   __syncthreads();
   // compute density_3d interaction
   if (gid < i_to) {
     unsigned int i_ref = tid + bsize;
     // load reference for re-use into shared memory
-    smem[i_ref] = h_inv * coords[gid];
-    // accumulate density_3d interactions between
+    smem[i_ref*2  ] = h_inv1 * coords[gid*2  ];
+    smem[i_ref*2+1] = h_inv2 * coords[gid*2+1];
+    smem[i_ref*2+2] = h_inv3 * coords[gid*2+2];
+    // accumulate interactions between
     // reference and cached coordinates
     type_out acc = 0;
     for (unsigned int i=0; i < n_cache_rows; ++i) {
@@ -83,7 +99,9 @@ density_3d_krnl(unsigned int i_offset
                                    , type_out> (smem
                                               , i_ref
                                               , i
-                                              , h_inv);
+                                              , h_inv1
+                                              , h_inv2
+                                              , h_inv3);
     }
     results[gid] += acc;
   }
@@ -97,7 +115,7 @@ template <typename type_in
 std::vector<type_out>
 density_3d_per_gpu(const type_in* coords
                  , unsigned int n_rows
-                 , type_in h_inv
+                 , std::vector<type_in> h_inv
                  , unsigned int i_from
                  , unsigned int i_to
                  , unsigned int i_gpu) {
@@ -106,7 +124,7 @@ density_3d_per_gpu(const type_in* coords
   type_in* d_coords;
   type_out* d_results;
   cudaMalloc((void**) &d_coords
-           , sizeof(type_in) * n_rows);
+           , sizeof(type_in) * n_rows * 3);
   cudaMalloc((void**) &d_results
            , sizeof(type_out) * n_rows);
   cudaMemset(d_results
@@ -114,7 +132,7 @@ density_3d_per_gpu(const type_in* coords
            , sizeof(type_out) * n_rows);
   cudaMemcpy(d_coords
            , coords
-           , sizeof(type_in) * n_rows
+           , sizeof(type_in) * n_rows * 3
            , cudaMemcpyHostToDevice);
   // determine memory size and block dimensions
   int max_shared_mem;
@@ -122,7 +140,7 @@ density_3d_per_gpu(const type_in* coords
                        , cudaDevAttrMaxSharedMemoryPerBlock
                        , i_gpu);
   check_error("getting info: max. shared memory on gpu");
-  unsigned int shared_mem = 2 * blocksize * sizeof(type_in);
+  unsigned int shared_mem = 6 * blocksize * sizeof(type_in);
   if (shared_mem > max_shared_mem) {
     std::cerr << "error: max. shared mem per block too small on this GPU.\n"
               << "       either reduze blocksize or get a better GPU."
@@ -135,6 +153,8 @@ density_3d_per_gpu(const type_in* coords
   }
   // run computation
   for (unsigned int i=0; i*blocksize < n_rows; ++i) {
+    //TODO pre-sort and boxing (-> adapt i_from,i_to based on boxed values
+    //                             of current ref-block)
     density_3d_krnl <<< blockrange
                       , blocksize
                       , shared_mem >>> (i*blocksize
@@ -142,7 +162,9 @@ density_3d_per_gpu(const type_in* coords
                                       , i_to
                                       , d_coords
                                       , n_rows
-                                      , h_inv
+                                      , h_inv[0]
+                                      , h_inv[1]
+                                      , h_inv[2]
                                       , d_results);
   }
   cudaDeviceSynchronize();
@@ -178,7 +200,7 @@ template <typename type_in
 std::vector<type_out>
 density_3d(const type_in* coords
          , unsigned int n_rows
-         , std::vector<float> h_inv) {
+         , std::vector<type_in> h_inv) {
   int n_gpus;
   cudaGetDeviceCount(&n_gpus);
   if (n_gpus == 0) {
@@ -202,7 +224,7 @@ density_3d(const type_in* coords
                         , type_out
                         , blocksize> (coords
                                     , n_rows
-                                    , h_inv[0]
+                                    , h_inv
                                     , i_gpu*gpurange
                                     , i_gpu == (n_gpus-1)
                                         ? n_rows

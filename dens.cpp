@@ -49,32 +49,53 @@ namespace Dens {
   }
 
   std::tuple<std::vector<std::vector<float>>, std::vector<std::string>>
-  compute_densities_2d(std::vector<std::size_t> selected_cols
+  compute_densities_nd(std::vector<std::size_t> selected_cols
                      , const float* coords
                      , std::size_t n_rows
-                     , std::vector<float> bandwidths) {
+                     , std::vector<float> bandwidths
+                     , unsigned int dim_kernel) {
     std::vector<std::string> labels;
     std::vector<std::vector<float>> densities;
     unsigned int n_selected_cols = selected_cols.size();
-    unsigned int j;
-    // compute 2d-probs
-    for (std::size_t i=0; i < n_selected_cols; ++i) {
-      for (std::size_t j=i+1; j < n_selected_cols; ++j) {
-        std::vector<float> dens_ij = combined_densities(coords
-                                                      , n_rows
-                                                      , {i
-                                                        ,j}
-                                                      , {bandwidths[i]
-                                                       , bandwidths[j]}
-                                                      , {0});
-        densities.push_back(dens_ij);
-        labels.push_back(std::to_string(selected_cols[i])
-                       + "_"
-                       + std::to_string(selected_cols[j]));
+    // construct indices
+    std::vector<std::vector<unsigned int>> indices;
+    std::vector<std::vector<float>> hs;
+    for (unsigned int i=0; i < n_selected_cols; ++i) {
+      for (unsigned int j=i+1; j < n_selected_cols; ++j) {
+        if (dim_kernel == 2) {
+          indices.push_back({i
+                            ,j});
+          hs.push_back({bandwidths[i]
+                      , bandwidths[j]});
+        } else {
+          for (unsigned int k=j+1; k < n_selected_cols; ++k) {
+            indices.push_back({i
+                              ,j
+                              ,k});
+            hs.push_back({bandwidths[i]
+                        , bandwidths[j]
+                        , bandwidths[k]});
+          }
+        }
       }
     }
+    // compute probs
+    for (unsigned int i=0; i < indices.size(); ++i) {
+      std::vector<float> dens = combined_densities(coords
+                                                 , n_rows
+                                                 , indices[i]
+                                                 , hs[i]);
+      densities.push_back(dens);
+      std::string lbl = std::to_string(selected_cols[indices[i][0]])
+                      + "_"
+                      + std::to_string(selected_cols[indices[i][1]]);
+      if (dim_kernel == 3) {
+        lbl += "_" + std::to_string(selected_cols[indices[i][2]]);
+      }
+      labels.push_back(lbl);
+    }
     // normalize densities
-    unsigned int i;
+    unsigned int i,j;
     float sum;
     #pragma omp parallel for default(none)\
                              private(j,i,sum)\
@@ -88,7 +109,6 @@ namespace Dens {
     }
     return std::make_tuple(densities, labels);
   }
-
 
   void
   main(boost::program_options::variables_map args) {
@@ -129,20 +149,19 @@ namespace Dens {
         }
         Tools::IO::out() << "\n";
       }
-    } else if (dim_kernel == 2) {
+    } else {
       std::vector<std::string> labels;
-      std::tie(densities, labels) = compute_densities_2d(selected_cols
+      std::tie(densities, labels) = compute_densities_nd(selected_cols
                                                        , coords
                                                        , n_rows
-                                                       , bandwidths);
+                                                       , bandwidths
+                                                       , dim_kernel);
       for (std::size_t j=0; j < labels.size(); ++j) {
         std::string lbl = labels[j];
         for (std::size_t i=0; i < n_rows; ++i) {
           Tools::IO::out() << lbl << " " << densities[j][i] << "\n";
         }
       }
-    } else {
-      //TODO 3D
     }
     // cleanup
     Tools::IO::free_coords(coords);

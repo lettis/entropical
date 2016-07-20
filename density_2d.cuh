@@ -37,10 +37,15 @@ density_2d_interaction(type_in* cache
                      , unsigned int i_cache
                      , type_in h_inv1
                      , type_in h_inv2) {
-  type_in p = cache[i_ref] - cache[i_cache];
-  p *= p;
-  if (p <= 1) {
-    p = h_inv * fma(p, -0.75, 0.75);
+  type_in p1 = cache[i_ref*2] - cache[i_cache*2];
+  type_in p2 = cache[i_ref*2+1] - cache[i_cache*2+1];
+  p1 *= p1;
+  p2 *= p2;
+  float p;
+  if (p1 <= 1 && p2 <= 1) {
+    p1 = h_inv1 * fma(p1, -0.75, 0.75);
+    p2 = h_inv2 * fma(p2, -0.75, 0.75);
+    p = p1 * p2;
   } else {
     p = 0;
   }
@@ -69,17 +74,17 @@ density_2d_krnl(unsigned int i_offset
   // into shared memory
   int n_cache_rows = min(bsize, n_rows-i_offset);
   if (tid < n_cache_rows) {
-    //TODO 2 cols
-    smem[tid] = h_inv * coords[tid+i_offset];
+    smem[tid*2  ] = h_inv1 * coords[(tid+i_offset)*2  ];
+    smem[tid*2+1] = h_inv2 * coords[(tid+i_offset)*2+1];
   }
   __syncthreads();
   // compute density_2d interaction
   if (gid < i_to) {
     unsigned int i_ref = tid + bsize;
     // load reference for re-use into shared memory
-    // TODO 2 cols
-    smem[i_ref] = h_inv * coords[gid];
-    // accumulate density_2d interactions between
+    smem[i_ref*2  ] = h_inv1 * coords[gid*2  ];
+    smem[i_ref*2+1] = h_inv2 * coords[gid*2+1];
+    // accumulate interactions between
     // reference and cached coordinates
     type_out acc = 0;
     for (unsigned int i=0; i < n_cache_rows; ++i) {
@@ -119,7 +124,7 @@ density_2d_per_gpu(const type_in* coords
            , sizeof(type_out) * n_rows);
   cudaMemcpy(d_coords
            , coords
-           , sizeof(type_in) * n_row * 2
+           , sizeof(type_in) * n_rows * 2
            , cudaMemcpyHostToDevice);
   // determine memory size and block dimensions
   int max_shared_mem;
@@ -149,8 +154,8 @@ density_2d_per_gpu(const type_in* coords
                                       , i_to
                                       , d_coords
                                       , n_rows
-                                      , h_inv1
-                                      , h_inv2
+                                      , h_inv[0]
+                                      , h_inv[1]
                                       , d_results);
   }
   cudaDeviceSynchronize();

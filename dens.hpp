@@ -19,10 +19,11 @@ namespace Dens {
    * Compute 2D-densities for given observables.
    */
   std::tuple<std::vector<std::vector<float>>, std::vector<std::string>>
-  compute_densities_2d(std::vector<std::size_t> selected_cols
+  compute_densities_nd(std::vector<std::size_t> selected_cols
                      , const float* coords
                      , std::size_t n_rows
-                     , std::vector<float> bandwidths);
+                     , std::vector<float> bandwidths
+                     , unsigned int dim_kernel);
 
   /**
    * Check command line options, read input,

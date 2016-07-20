@@ -21,5 +21,5 @@ combined_densities(const float* coords
                  , std::size_t n_rows
                  , std::vector<unsigned int> i_cols
                  , std::vector<float> h
-                 , std::vector<std::size_t> tau);
+                 , std::vector<unsigned int> tau);
 

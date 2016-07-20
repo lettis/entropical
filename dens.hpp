@@ -16,7 +16,7 @@ namespace Dens {
                      , std::vector<float> bandwidths);
 
   /**
-   * Compute 2D-densities for given observables.
+   * Compute 2D/3D-densities for given observables.
    */
   std::tuple<std::vector<std::vector<float>>, std::vector<std::string>>
   compute_densities_nd(std::vector<std::size_t> selected_cols

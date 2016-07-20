@@ -14,7 +14,7 @@ combined_densities(const float* coords
                  , std::vector<unsigned int> i_cols
                  , std::vector<float> h) {
   unsigned int n_dim = i_cols.size();
-  std::vector<std::size_t> tau;
+  std::vector<unsigned int> tau;
   switch(n_dim) {
     case 1:
       tau = {0};
@@ -43,7 +43,7 @@ combined_densities(const float* coords
                  , std::size_t n_rows
                  , std::vector<unsigned int> i_cols
                  , std::vector<float> h
-                 , std::vector<std::size_t> tau) {
+                 , std::vector<unsigned int> tau) {
   unsigned int n_dim = i_cols.size();
   if (n_dim < 1 || 3 < n_dim) {
     std::cerr << "error: can only compute combined probabilities in 1, 2 or 3 "
@@ -70,10 +70,13 @@ combined_densities(const float* coords
   }
   // create filtered coords (row-major order)
   // from original coords (col-major order)
-  std::vector<float> sel_coords(n_rows*n_dim);
-  for (unsigned int i=0; i < n_rows; ++i) {
+  // honoring lagtimes tau
+  unsigned int tau_max = (*std::max_element(tau.begin(), tau.end()));
+  unsigned int n_rows_sel = n_rows - tau_max;
+  std::vector<float> sel_coords(n_rows_sel*n_dim);
+  for (unsigned int i=0; i < n_rows_sel; ++i) {
     for (unsigned int j=0; j < n_dim; ++j) {
-      sel_coords[i*n_dim+j] = coords[i_cols[j]*n_rows+i];
+      sel_coords[i*n_dim+j] = coords[i_cols[j]*n_rows+i+tau[j]];
     }
   }
   std::function<
@@ -101,7 +104,7 @@ combined_densities(const float* coords
     exit(EXIT_FAILURE);
   }
   return dens_func(sel_coords.data()
-                 , n_rows
+                 , n_rows_sel
                  , h_inv);
 }
 

@@ -138,6 +138,12 @@ namespace Dens {
     // run computation
     std::vector<std::vector<float>> densities;
     if (dim_kernel == 1) {
+      if (args["taus"].as<std::string>() != "") {
+        std::cerr << "error: definition of lagtimes (taus) for 1d probability "
+                  << "density does not make sense."
+                  << std::endl;
+        exit(EXIT_FAILURE);
+      }
       densities = compute_densities_1d(selected_cols
                                      , coords
                                      , n_rows
@@ -150,6 +156,17 @@ namespace Dens {
         Tools::IO::out() << "\n";
       }
     } else {
+      std::string s_taus = args["taus"].as<std::string>();
+      if (s_taus == "") {
+        //TODO: set default (lagtimes = 0)
+      } else {
+        std::vector<std::string> v_s_taus = Tools::String::split(s_taus
+                                                               , " "
+                                                               , true);
+        //TODO: check v_s_taus.size() == dim_kernel
+        //TODO: go on
+        std::vector<unsigned int> taus(dim_kernel);
+      }
       std::vector<std::string> labels;
       std::tie(densities, labels) = compute_densities_nd(selected_cols
                                                        , coords

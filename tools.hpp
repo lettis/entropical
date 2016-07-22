@@ -43,6 +43,13 @@ namespace Tools {
   kahan_sum(const std::vector<FLOAT>& xs);
 
   /**
+   * normalize values to sum
+   */
+  template <typename FLOAT>
+  std::vector<FLOAT>
+  sum1_normalized(std::vector<FLOAT> xs);
+
+  /**
    * @returns -1.0 if negative, 1.0 if positive or zero
    */
   template <typename FLOAT>

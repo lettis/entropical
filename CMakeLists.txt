@@ -45,6 +45,7 @@ set(IM_SRC im.cpp
            im_help.cpp
            mi.cpp
            transs.cpp
+           kldiv.cpp
            dens.cpp
            negs.cpp
            amise.cpp

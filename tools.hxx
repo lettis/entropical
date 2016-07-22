@@ -31,6 +31,16 @@ namespace Tools {
   }
 
   template <typename FLOAT>
+  std::vector<FLOAT>
+  sum1_normalized(std::vector<FLOAT> xs) {
+    FLOAT sum = kahan_sum(xs);
+    for (FLOAT& x: xs) {
+      x /= sum;
+    }
+    return xs;
+  }
+
+  template <typename FLOAT>
   FLOAT
   sgn(FLOAT val) {
     if (val < 0.0) {

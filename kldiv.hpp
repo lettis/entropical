@@ -1,16 +1,17 @@
+
 #pragma once
 
 #include <boost/program_options.hpp>
 
-namespace Transs {
+namespace KLDiv {
 
   /**
    * Check command line options, read input,
-   * run transfer entropy computation and
+   * run Kullback-Leibler divergence computation and
    * write output to file (or stdout).
    */
   void
   main(boost::program_options::variables_map args);
-
-} // end namespace 'Transs'
+  
+} // end namespace 'KLDiv'
 

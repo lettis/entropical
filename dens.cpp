@@ -33,17 +33,13 @@ namespace Dens {
                                       , {0});
     }
     // normalize densities
-    unsigned int i;
-    float sum;
-    #pragma omp parallel for default(none)\
-                             private(j,i,sum)\
-                             firstprivate(n_selected_cols,n_rows)\
-                             shared(densities)
+    #pragma omp parallel for\
+      default(none)\
+      private(j)\
+      firstprivate(n_selected_cols)\
+      shared(densities)
     for (j=0; j < n_selected_cols; ++j) {
-      sum = Tools::kahan_sum(densities[j]);
-      for (i=0; i < n_rows; ++i) {
-        densities[j][i] /= sum;
-      }
+      densities[j] = Tools::sum1_normalized(densities[j]);
     }
     return densities;
   }
@@ -97,17 +93,13 @@ namespace Dens {
       labels.push_back(lbl);
     }
     // normalize densities
-    unsigned int i,j;
-    float sum;
-    #pragma omp parallel for default(none)\
-                             private(j,i,sum)\
-                             firstprivate(n_selected_cols,n_rows)\
-                             shared(densities)
+    unsigned int j;
+    #pragma omp parallel for\
+      default(none)\
+      private(j)\
+      shared(densities)
     for (j=0; j < densities.size(); ++j) {
-      sum = Tools::kahan_sum(densities[j]);
-      for (i=0; i < densities[j].size(); ++i) {
-        densities[j][i] /= sum;
-      }
+      densities[j] = Tools::sum1_normalized(densities[j]);
     }
     return std::make_tuple(densities, labels);
   }

@@ -11,3 +11,5 @@ combined_densities(const float* coords
                  , std::vector<std::size_t> i_cols
                  , std::vector<float> h);
 
+//TODO: version with lagtimes tau (compare CUDA code)
+

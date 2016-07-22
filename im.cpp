@@ -18,6 +18,7 @@
 
 #include "transs.hpp"
 #include "mi.hpp"
+#include "kldiv.hpp"
 #include "dens.hpp"
 #include "negs.hpp"
 #include "amise.hpp"
@@ -61,8 +62,11 @@ int main(int argc, char* argv[]) {
         " as space separated values.")
       ("dims,D", po::value<unsigned int>()->default_value(1),
         "kernel dimensionality for multivariate density estimation (dens)")
+      ("tau,t", po::value<unsigned int>()->default_value(1),
+        "lagtime for transfer entropy calculation ('transs'), expressed "
+        "in # frames, default: 1")
       ("taus,T", po::value<std::string>()->default_value(""),
-        "lagtimes for combined density estimation, "
+        "lagtimes for combined density estimation ('dens'), "
         "as list with (positive!) value per dimension (compare --columns/-c) "
         "(in # frames, default: no lag)")
 
@@ -107,10 +111,11 @@ int main(int argc, char* argv[]) {
     // select mode and run corresponding subroutine
     std::string mode = args["mode"].as<std::string>();
     std::map<std::string, std::function<void(po::variables_map)>> subroutines;
-    subroutines["transs"] = Transs::main; //TODO
-    subroutines["mi"] = Mi::main; //TODO
+    subroutines["transs"] = Transs::main;
+    subroutines["mi"] = Mi::main;
+    subroutines["kldiv"] = KLDiv::main;
     subroutines["dens"] = Dens::main;
-    subroutines["negs"] = Negs::main; // TODO
+    subroutines["negs"] = Negs::main;
     subroutines["amise"] = Amise::main; // TODO
     subroutines["hestimate"] = Hestimate::main;
     if (subroutines.count(mode) == 0) {

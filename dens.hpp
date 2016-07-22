@@ -23,7 +23,8 @@ namespace Dens {
                      , const float* coords
                      , std::size_t n_rows
                      , std::vector<float> bandwidths
-                     , unsigned int dim_kernel);
+                     , unsigned int dim_kernel
+                     , std::vector<unsigned int> taus);
 
   /**
    * Check command line options, read input,

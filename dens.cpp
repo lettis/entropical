@@ -53,7 +53,8 @@ namespace Dens {
                      , const float* coords
                      , std::size_t n_rows
                      , std::vector<float> bandwidths
-                     , unsigned int dim_kernel) {
+                     , unsigned int dim_kernel
+                     , std::vector<unsigned int> taus) {
     std::vector<std::string> labels;
     std::vector<std::vector<float>> densities;
     unsigned int n_selected_cols = selected_cols.size();
@@ -84,7 +85,8 @@ namespace Dens {
       std::vector<float> dens = combined_densities(coords
                                                  , n_rows
                                                  , indices[i]
-                                                 , hs[i]);
+                                                 , hs[i]
+                                                 , taus);
       densities.push_back(dens);
       std::string lbl = std::to_string(selected_cols[indices[i][0]])
                       + "_"
@@ -156,26 +158,32 @@ namespace Dens {
         Tools::IO::out() << "\n";
       }
     } else {
+      std::vector<unsigned int> taus(dim_kernel, 0);
       std::string s_taus = args["taus"].as<std::string>();
-      if (s_taus == "") {
-        //TODO: set default (lagtimes = 0)
-      } else {
+      if (s_taus != "") {
         std::vector<std::string> v_s_taus = Tools::String::split(s_taus
-                                                               , " "
+                                                               , ' '
                                                                , true);
-        //TODO: check v_s_taus.size() == dim_kernel
-        //TODO: go on
-        std::vector<unsigned int> taus(dim_kernel);
+        if (v_s_taus.size() != dim_kernel) {
+          std::cerr << "error: number of lagtime parameters does not match "
+                    << "specified kernel dimension!"
+                    << std::endl;
+          exit(EXIT_FAILURE);
+        }
+        for (unsigned int i=0; i < dim_kernel; ++i) {
+          taus[i] = std::stoul(v_s_taus[i]);
+        }
       }
       std::vector<std::string> labels;
       std::tie(densities, labels) = compute_densities_nd(selected_cols
                                                        , coords
                                                        , n_rows
                                                        , bandwidths
-                                                       , dim_kernel);
+                                                       , dim_kernel
+                                                       , taus);
       for (std::size_t j=0; j < labels.size(); ++j) {
         std::string lbl = labels[j];
-        for (std::size_t i=0; i < n_rows; ++i) {
+        for (std::size_t i=0; i < densities[j].size(); ++i) {
           Tools::IO::out() << lbl << " " << densities[j][i] << "\n";
         }
       }

@@ -105,7 +105,7 @@ namespace Dens {
                              shared(densities)
     for (j=0; j < densities.size(); ++j) {
       sum = Tools::kahan_sum(densities[j]);
-      for (i=0; i < n_rows; ++i) {
+      for (i=0; i < densities[j].size(); ++i) {
         densities[j][i] /= sum;
       }
     }
@@ -117,7 +117,7 @@ namespace Dens {
     using Tools::IO::selected_coords_bandwidths;
     Tools::IO::set_out(args["output"].as<std::string>());
     std::string fname_input = args["input"].as<std::string>();
-    unsigned int dim_kernel = args["dim"].as<unsigned int>();
+    unsigned int dim_kernel = args["dims"].as<unsigned int>();
     if (dim_kernel == 0 || dim_kernel > 3) {
       std::cerr << "error: only allowed kernel dimensions are 1, 2 or 3."
                 << std::endl;

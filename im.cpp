@@ -109,7 +109,7 @@ int main(int argc, char* argv[]) {
     std::map<std::string, std::function<void(po::variables_map)>> subroutines;
     subroutines["transs"] = Transs::main; //TODO
     subroutines["mi"] = Mi::main; //TODO
-    subroutines["dens"] = Dens::main; // TODO
+    subroutines["dens"] = Dens::main;
     subroutines["negs"] = Negs::main; // TODO
     subroutines["amise"] = Amise::main; // TODO
     subroutines["hestimate"] = Hestimate::main;

@@ -8,8 +8,16 @@
 std::vector<float>
 combined_densities(const float* coords
                  , std::size_t n_rows
-                 , std::vector<std::size_t> i_cols
+                 , std::vector<unsigned int> i_cols
                  , std::vector<float> h);
 
-//TODO: version with lagtimes tau (compare CUDA code)
+/**
+ * Perform combined density computation for 1-3 observables.
+ */
+std::vector<float>
+combined_densities(const float* coords
+                 , std::size_t n_rows
+                 , std::vector<unsigned int> i_cols
+                 , std::vector<float> h
+                 , std::vector<unsigned int> tau);
 

@@ -102,7 +102,7 @@ namespace Tools {
   std::vector<NUM>
   dim1_sorted_coords(const NUM* coords
                    , std::size_t n_rows
-                   , std::vector<std::size_t> col_indices) {
+                   , std::vector<unsigned int> col_indices) {
     std::size_t n_dim = col_indices.size();
     std::vector<NUM> sorted_coords(n_rows*n_dim);
     if (n_dim == 1) {

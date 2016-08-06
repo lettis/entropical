@@ -60,7 +60,7 @@ namespace {
 
   std::vector<float>
   densities_1d(const float* coords
-             , std::vector<std::size_t> i_col
+             , std::vector<unsigned int> i_col
              , const std::vector<float>& sorted_coords
              , std::vector<float> h) {
     std::size_t n_rows = sorted_coords.size();
@@ -89,7 +89,7 @@ namespace {
   
   std::vector<float>
   densities_2d(const float* coords
-             , std::vector<std::size_t> i_col
+             , std::vector<unsigned int> i_col
              , const std::vector<float>& sorted_coords
              , std::vector<float> h) {
     std::size_t n_rows = sorted_coords.size() / 2;
@@ -119,7 +119,7 @@ namespace {
   
   std::vector<float>
   densities_3d(const float* coords
-             , std::vector<std::size_t> i_col
+             , std::vector<unsigned int> i_col
              , const std::vector<float>& sorted_coords
              , std::vector<float> h) {
     std::size_t n_rows = sorted_coords.size() / 3;
@@ -151,12 +151,43 @@ namespace {
 
 } // end local namespace
 
+std::vector<float>
+combined_densities(const float* coords
+                 , std::size_t n_rows
+                 , std::vector<unsigned int> i_cols
+                 , std::vector<float> h) {
+  unsigned int n_dim = i_cols.size();
+  std::vector<unsigned int> tau;
+  switch(n_dim) {
+    case 1:
+      tau = {0};
+      break;
+    case 2:
+      tau = {0, 0};
+      break;
+    case 3:
+      tau = {0, 0, 0};
+      break;
+    default:
+      std::cerr << "error: unsupported number of dimensions. this should "
+                << "never happen!"
+                << std::endl;
+      exit(EXIT_FAILURE);
+  }
+  return combined_densities(coords
+                          , n_rows
+                          , i_cols
+                          , h
+                          , tau);
+}
 
 std::vector<float>
 combined_densities(const float* coords
                  , std::size_t n_rows
-                 , std::vector<std::size_t> i_cols
-                 , std::vector<float> h) {
+                 , std::vector<unsigned int> i_cols
+                 , std::vector<float> h
+                 , std::vector<unsigned int> tau) {
+//TODO: include tau
   std::size_t n_dim = i_cols.size();
   assert(1 <= n_dim
       && n_dim <= 3

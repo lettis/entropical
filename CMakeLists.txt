@@ -1,6 +1,6 @@
 
 cmake_minimum_required (VERSION 2.8)
-project (transs)
+project (entropical)
 
 # enable static linking
 #set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
@@ -41,18 +41,17 @@ add_subdirectory(coords_file)
 find_package(Boost 1.49 COMPONENTS program_options REQUIRED)
 include_directories (${Boost_INCLUDE_DIR})
 
-set(IM_SRC im.cpp
-           im_help.cpp
-           mi.cpp
-           transs.cpp
-           kldiv.cpp
-           dens.cpp
-           negs.cpp
-           amise.cpp
-           hestimate.cpp
-           tools.cpp)
+set(ENTROPICAL_SRC entropical.cpp
+                   mi.cpp
+                   transs.cpp
+                   kldiv.cpp
+                   dens.cpp
+                   negs.cpp
+                   amise.cpp
+                   hestimate.cpp
+                   tools.cpp)
 
-set (IM_LIBS ${Boost_LIBRARIES} coords_file)
+set (ENTROPICAL_LIBS ${Boost_LIBRARIES} coords_file)
 
 
 if(${USE_CUDA})
@@ -62,22 +61,22 @@ if(${USE_CUDA})
   set(CUDA_NVCC_FLAGS                     "-std=c++11")
   set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} ";-Xcompiler -fopenmp")
   set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} ";-O3;-DVERBOSE")
-  set (IM_SRC ${IM_SRC} densities_cuda.cu)
-  set (IM_LIBS ${IM_LIBS} ${CUDA_LIBRARIES})
+  set (ENTROPICAL_SRC ${ENTROPICAL_SRC} densities_cuda.cu)
+  set (ENTROPICAL_LIBS ${ENTROPICAL_LIBS} ${CUDA_LIBRARIES})
   include_directories (${CUDA_INCLUDE_DIRS})
   add_definitions(-DUSE_CUDA)
 else()
   message(STATUS "  Acceleration: using OpenMP")
-  set (IM_SRC ${IM_SRC} densities_omp.cpp)
+  set (ENTROPICAL_SRC ${ENTROPICAL_SRC} densities_omp.cpp)
 endif()
 
 if(${USE_CUDA})
-  cuda_add_executable(im ${IM_SRC})
+  cuda_add_executable(entropical ${ENTROPICAL_SRC})
 else()
-  add_executable(im ${IM_SRC})
+  add_executable(entropical ${ENTROPICAL_SRC})
 endif()
 
-target_link_libraries(im ${IM_LIBS})
+target_link_libraries(entropical ${ENTROPICAL_LIBS})
 
-install(TARGETS im DESTINATION .)
+install(TARGETS entropical DESTINATION .)
 

@@ -1,4 +1,6 @@
 
+#include <cmath>
+
 #include "transs.hpp"
 #include "tools.hpp"
 
@@ -17,7 +19,7 @@ namespace Transs {
     Tools::IO::set_out(args["output"].as<std::string>());
     std::string fname_input = args["input"].as<std::string>();
     unsigned int tau = args["tau"].as<unsigned int>();
-    //TODO log vs log2
+    auto logfunc = Tools::select_log(args["bits"].as<bool>());
     std::vector<std::size_t> selected_cols;
     // get coordinates
     float* coords;
@@ -88,10 +90,14 @@ namespace Transs {
                                         , 0
                                         , tau}));
         for (unsigned int k=0; k < n_rows; ++k) {
-          transs[i*n_cols+j] += p_ij_itau[k] * log(p_ij_itau[k] * p[i][k]
-                                                 / (p_ij[k] * p_tau[i][k]));
-          transs[j*n_cols+i] += p_ij_jtau[k] * log(p_ij_jtau[k] * p[j][k]
-                                                 / (p_ij[k] * p_tau[j][k]));
+          transs[i*n_cols+j] += p_ij_itau[k] * logfunc(p_ij_itau[k]
+                                                     * p[i][k]
+                                                     / p_ij[k]
+                                                     / p_tau[i][k]);
+          transs[j*n_cols+i] += p_ij_jtau[k] * logfunc(p_ij_jtau[k]
+                                                     * p[j][k]
+                                                     / p_ij[k]
+                                                     / p_tau[j][k]);
         }
       }
     }

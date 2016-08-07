@@ -16,7 +16,7 @@ namespace Negs {
     using Tools::IO::selected_coords_bandwidths;
     Tools::IO::set_out(args["output"].as<std::string>());
     std::string fname_input = args["input"].as<std::string>();
-    //TODO log vs log2
+    auto logfunc = Tools::select_log(args["bits"].as<bool>());
     std::vector<std::size_t> selected_cols;
     // get coordinates
     float* coords;
@@ -41,7 +41,7 @@ namespace Negs {
                                                 , {i}
                                                 , {bandwidths[i]}));
       for (unsigned int k=0; k < n_rows; ++k) {
-        negs[i] += log(p[k]) * p[k];
+        negs[i] += logfunc(p[k]) * p[k];
       }
       negs[i] *= -1.0f;
     }

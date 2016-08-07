@@ -16,7 +16,7 @@ namespace Mi {
     using Tools::IO::selected_coords_bandwidths;
     Tools::IO::set_out(args["output"].as<std::string>());
     std::string fname_input = args["input"].as<std::string>();
-    //TODO log vs log2
+    auto logfunc = Tools::select_log(args["bits"].as<bool>());
     std::vector<std::size_t> selected_cols;
     // get coordinates
     float* coords;
@@ -55,7 +55,7 @@ namespace Mi {
                                                       , bandwidths[j]}));
         mutinf[i*n_cols+j] = 0.0f;
         for (unsigned int k=0; k < n_rows; ++k) {
-          mutinf[i*n_cols+j] += p_ij[k] * log(p_ij[k] / p_i[k] / p_j[k]);
+          mutinf[i*n_cols+j] += p_ij[k] * logfunc(p_ij[k] / p_i[k] / p_j[k]);
         }
         mutinf[j*n_cols+i] = mutinf[i*n_cols+j];
       }

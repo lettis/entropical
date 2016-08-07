@@ -16,7 +16,7 @@ namespace KLDiv {
     using Tools::IO::selected_coords_bandwidths;
     Tools::IO::set_out(args["output"].as<std::string>());
     std::string fname_input = args["input"].as<std::string>();
-    //TODO log vs log2
+    auto logfunc = Tools::select_log(args["bits"].as<bool>());
     std::vector<std::size_t> selected_cols;
     // get coordinates
     float* coords;
@@ -47,8 +47,8 @@ namespace KLDiv {
                                                     , {j}
                                                     , {bandwidths[j]}));
         for (unsigned int k=0; k < n_rows; ++k) {
-          kldiv[i*n_cols+j] += p_i[k] * log(p_i[k] / p_j[k]);
-          kldiv[j*n_cols+i] += p_j[k] * log(p_j[k] / p_i[k]);
+          kldiv[i*n_cols+j] += p_i[k] * logfunc(p_i[k] / p_j[k]);
+          kldiv[j*n_cols+i] += p_j[k] * logfunc(p_j[k] / p_i[k]);
         }
       }
     }

@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 #include <utility>
+#include <functional>
 
 // allocate memory (32 bit for SSE4_1, AVX)
 // TODO: define MEM_ALIGNMENT during cmake and
@@ -89,6 +90,11 @@ namespace Tools {
                    , std::size_t n_rows
                    , std::vector<unsigned int> col_indices);
 
+  /**
+   * @returns log2 if using bits, else log.
+   */
+  std::function<float(float)>
+  select_log(bool use_bits);
 
   namespace String {
     /**

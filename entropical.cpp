@@ -27,6 +27,7 @@ int main(int argc, char* argv[]) {
   namespace po = boost::program_options;
   
   std::string general_help =
+    "\n"
     "                /_'. _\n"
     "              _   \\ / '-.\n"
     "             < ``-.;),--'`\n"
@@ -44,11 +45,11 @@ int main(int argc, char* argv[]) {
     "                 ~~   `--...-'`    ~\n"
     "\n\n"
     " compute entropy-based/information measures like\n"
-    " local probabilities,mutual information, information transfer, etc.\n"
+    " local probabilities, mutual information, transfer entropies, etc.\n"
 #ifdef USE_CUDA
-    " code is accelerated by CUDA on Nvidia-GPUs.\n\n"
+    " code is accelerated using CUDA on Nvidia-GPUs.\n\n"
 #else
-    " code is accelerated by OpenMP on CPU.\n\n"
+    " code is accelerated using OpenMP on CPU(s).\n\n"
 #endif
     "modes:\n"
     "  transs:    compute transfer entropies\n"
@@ -61,7 +62,7 @@ int main(int argc, char* argv[]) {
     "usage:\n"
     "  entropical MODE --option1 --option2 ...\n\n"
     "for a list of available options per mode, run with '-h' option, e.g.\n"
-    "  entropical transs -h\n"
+    "  entropical transs -h\n\n"
   ;
   enum Mode {TRANSS
            , KLDIV
@@ -116,6 +117,8 @@ int main(int argc, char* argv[]) {
     ("bandwidths,H", po::value<std::string>()->default_value(""),
       "bandwidths for univariate density estimation"
       " as space separated values.")
+    ("bits,B", po::bool_switch()->default_value(false),
+      "use log2 instead of ln")
   ;
   // kldiv
   po::options_description opts_kldiv(
@@ -125,6 +128,8 @@ int main(int argc, char* argv[]) {
     ("bandwidths,H", po::value<std::string>()->default_value(""),
       "bandwidths for univariate density estimation"
       " as space separated values.")
+    ("bits,B", po::bool_switch()->default_value(false),
+      "use log2 instead of ln")
   ;
   // mi
   po::options_description opts_mi(
@@ -134,6 +139,8 @@ int main(int argc, char* argv[]) {
     ("bandwidths,H", po::value<std::string>()->default_value(""),
       "bandwidths for univariate density estimation"
       " as space separated values.")
+    ("bits,B", po::bool_switch()->default_value(false),
+      "use log2 instead of ln")
   ;
   // dens
   po::options_description opts_dens(
@@ -154,6 +161,8 @@ int main(int argc, char* argv[]) {
     ("bandwidths,H", po::value<std::string>()->default_value(""),
       "bandwidths for univariate density estimation"
       " as space separated values.")
+    ("bits,B", po::bool_switch()->default_value(false),
+      "use log2 instead of ln")
   ;
   // amise
   po::options_description opts_amise(
@@ -171,7 +180,7 @@ int main(int argc, char* argv[]) {
   , {KLDIV, opts_kldiv}
   , {MI, opts_mi}
   , {DENS, opts_dens}
-  , {NEGS, opts_dens}
+  , {NEGS, opts_negs}
   , {AMISE, opts_amise}
   , {HESTIMATE, opts_hestimate}};
   try {

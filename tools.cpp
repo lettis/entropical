@@ -15,6 +15,19 @@ namespace Tools {
     return (unsigned int) std::ceil(orig / ((float) mult));
   };
 
+  std::function<float(float)>
+  select_log(bool use_bits) {
+    if (use_bits) {
+      return [](float x) -> float {
+               return std::log2(x);
+             };
+    } else {
+      return [](float x) -> float {
+               return std::log(x);
+             };
+    }
+  }
+
 namespace String {
 
   std::string

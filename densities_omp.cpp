@@ -187,7 +187,7 @@ combined_densities(const float* coords
                  , std::vector<unsigned int> i_cols
                  , std::vector<float> h
                  , std::vector<unsigned int> tau) {
-//TODO: include tau
+//TODO: include tau by using Tools::densities_coord_prep
   std::size_t n_dim = i_cols.size();
   assert(1 <= n_dim
       && n_dim <= 3

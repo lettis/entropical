@@ -44,6 +44,10 @@ combined_densities(const float* coords
                  , std::vector<unsigned int> i_cols
                  , std::vector<float> h
                  , std::vector<unsigned int> tau) {
+
+
+  //TODO: put in tool func: densities_coord_prep(..., ROW_MAJOR=true)
+  //                         -> n_dim, selected_coords
   unsigned int n_dim = i_cols.size();
   if (n_dim < 1 || 3 < n_dim) {
     std::cerr << "error: can only compute combined probabilities in 1, 2 or 3 "
@@ -79,6 +83,9 @@ combined_densities(const float* coords
       sel_coords[i*n_dim+j] = coords[i_cols[j]*n_rows+i+tau[j]];
     }
   }
+
+
+
   std::function<
     std::vector<float>(float*
                      , unsigned int

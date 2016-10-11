@@ -58,6 +58,8 @@ namespace {
     return bxs;
   }
 
+  //TODO: 1d meta func with adaptable kernel for densities, var, bias
+
   std::vector<float>
   densities_1d(const float* coords
              , std::vector<unsigned int> i_col
@@ -86,6 +88,10 @@ namespace {
     }
     return P;
   }
+
+  //TODO: var_1d
+  //TODO: bias_1d
+
   
   std::vector<float>
   densities_2d(const float* coords
@@ -187,27 +193,33 @@ combined_densities(const float* coords
                  , std::vector<unsigned int> i_cols
                  , std::vector<float> h
                  , std::vector<unsigned int> tau) {
-//TODO: include tau by using Tools::densities_coord_prep
-  std::size_t n_dim = i_cols.size();
-  assert(1 <= n_dim
-      && n_dim <= 3
-      && n_dim == h.size());
-  std::vector<float> sorted_coords = Tools::dim1_sorted_coords(coords
-                                                             , n_rows
-                                                             , i_cols);
+  // select coords according to tau values
+  std::vector<float> sel_coords = Tools::prob_dens_coord_prep(coords
+                                                            , n_rows
+                                                            , i_cols
+                                                            , h
+                                                            , tau
+                                                        // row-major result?
+                                                            , false);
+  // sort coordinates along first dimension for efficient density estimation
+  std::vector<float> sorted_coords = Tools::dim1_sorted_coords(
+                                       sel_coords.data()
+                                     , n_rows
+                                     , i_cols);
+  unsigned int n_dim = i_cols.size();
   switch(n_dim) {
     case 1:
-      return densities_1d(coords
+      return densities_1d(sel_coords.data()
                         , i_cols
                         , sorted_coords
                         , h);
     case 2:
-      return densities_2d(coords
+      return densities_2d(sel_coords.data()
                         , i_cols
                         , sorted_coords
                         , h);
     case 3:
-      return densities_3d(coords
+      return densities_3d(sel_coords.data()
                         , i_cols
                         , sorted_coords
                         , h);

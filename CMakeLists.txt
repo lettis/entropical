@@ -70,13 +70,16 @@ else()
   set (ENTROPICAL_SRC ${ENTROPICAL_SRC} densities_omp.cpp)
 endif()
 
+set (PROGNAME entropical)
+
 if(${USE_CUDA})
-  cuda_add_executable(entropical ${ENTROPICAL_SRC})
+  set (PROGNAME ${PROGNAME}.cuda)
+  cuda_add_executable(${PROGNAME} ${ENTROPICAL_SRC})
 else()
-  add_executable(entropical ${ENTROPICAL_SRC})
+  add_executable(${PROGNAME} ${ENTROPICAL_SRC})
 endif()
 
-target_link_libraries(entropical ${ENTROPICAL_LIBS})
+target_link_libraries(${PROGNAME} ${ENTROPICAL_LIBS})
 
-install(TARGETS entropical DESTINATION .)
+install(TARGETS ${PROGNAME} DESTINATION .)
 

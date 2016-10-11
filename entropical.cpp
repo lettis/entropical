@@ -168,6 +168,11 @@ int main(int argc, char* argv[]) {
   po::options_description opts_amise(
     "amise - estimate probability kernel bandwidths via amise-minimization");
   opts_amise.add(opts_common);
+  opts_amise.add_options()
+    ("bandwidths,H", po::value<std::string>()->default_value(""),
+      "bandwidths for univariate density estimation"
+      " as space separated values.")
+  ;
   // hestimate
   po::options_description opts_hestimate(
     "hestimate - estimate probability kernel bandwidths via rule-of-thumb");
@@ -201,7 +206,7 @@ int main(int argc, char* argv[]) {
     subroutines[KLDIV] = KLDiv::main;
     subroutines[DENS] = Dens::main;
     subroutines[NEGS] = Negs::main;
-    subroutines[AMISE] = Amise::main; // TODO
+    subroutines[AMISE] = Amise::main;
     subroutines[HESTIMATE] = Hestimate::main;
     // ... and run corresponding subroutine
     subroutines[mode](args);

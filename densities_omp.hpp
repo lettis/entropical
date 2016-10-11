@@ -2,6 +2,37 @@
 
 #include <vector>
 
+namespace Densities {
+namespace OMP {
+  
+  struct epanechnikov {
+    float operator() (float ref_val
+                    , float val
+                    , float h) const;
+  };
+
+  struct epanechnikov_var {
+    float operator() (float ref_val
+                    , float val
+                    , float h) const;
+  };
+
+  struct epanechnikov_bias {
+    float operator() (float ref_val
+                    , float val
+                    , float h) const;
+  };
+
+  //TODO: implement
+  template <typename KernelFunctor>
+  std::vector<float>
+  per_frame_1d(const float* coords
+             , std::vector<unsigned int> i_col
+             , const std::vector<float>& sorted_coords
+             , std::vector<float> h);
+
+}} // end namespace Densities::OMP
+
 /**
  * Perform combined density computation for 1-3 observables on CPU.
  */

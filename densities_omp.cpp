@@ -11,17 +11,47 @@
 
 
 
-namespace {
+namespace Densities {
+namespace OMP {
 
   float
-  epanechnikov(float ref_val
-             , float val
-             , float h) {
+  epanechnikov::operator() (float ref_val
+                          , float val
+                          , float h) const {
     float u_squared = (ref_val-val) / h;
     u_squared *= u_squared;
-    return (u_squared <= 1.0f ? 0.75 * (1-u_squared) : 0.0f) / h;
-  };
+    return (u_squared <= 1.0f ? 0.75 * (1.0f-u_squared) : 0.0f) / h;
+  }
 
+  float
+  epanechnikov_var::operator() (float ref_val
+                              , float val
+                              , float h) const {
+    float u_squared = (ref_val-val) / h;
+    u_squared *= u_squared;
+    if (u_squared <= 1.0f) {
+      u_squared = 1.0f - u_squared;
+      return u_squared*u_squared;
+    } else {
+      return 0.0f;
+    }
+  }
+
+  float
+  epanechnikov_bias::operator() (float ref_val
+                               , float val
+                               , float h) const {
+    float u_squared = (ref_val-val) / h;
+    u_squared *= u_squared;
+    if (u_squared <= 1.0f) {
+      return u_squared * (1.0f-u_squared);
+    } else {
+      return 0.0f;
+    }
+  }
+}} // end namespace Densities::OMP
+
+namespace {
   typedef std::vector<std::array<std::size_t, 2>> Boxes;
 
   Boxes
@@ -65,6 +95,7 @@ namespace {
              , std::vector<unsigned int> i_col
              , const std::vector<float>& sorted_coords
              , std::vector<float> h) {
+    Densities::OMP::epanechnikov epa;
     std::size_t n_rows = sorted_coords.size();
     std::vector<float> P(n_rows, 0.0f);
     std::size_t i,k;
@@ -77,12 +108,12 @@ namespace {
     #pragma omp parallel for default(none)\
                              private(ref_val,i,k)\
                              firstprivate(n_rows,h,i_col)\
-                             shared(coords,sorted_coords,P,bxs)\
+                             shared(coords,sorted_coords,P,bxs,epa)\
                              schedule(dynamic,1)
     for (i=0; i < n_rows; ++i) {
       ref_val = coords[i_col[0]*n_rows+i];
       for (k=bxs[i][0]; k <= bxs[i][1]; ++k) {
-        P[i] += epanechnikov(ref_val, sorted_coords[k], h[0]);
+        P[i] += epa(ref_val, sorted_coords[k], h[0]);
       }
       P[i] /= n_rows;
     }
@@ -98,6 +129,7 @@ namespace {
              , std::vector<unsigned int> i_col
              , const std::vector<float>& sorted_coords
              , std::vector<float> h) {
+    Densities::OMP::epanechnikov epa;
     std::size_t n_rows = sorted_coords.size() / 2;
     std::vector<float> P(n_rows);
     Boxes bxs = boxes(coords
@@ -110,13 +142,13 @@ namespace {
     #pragma omp parallel for default(none)\
                              private(ref_1,ref_2,i,k)\
                              firstprivate(i_col,n_rows,h)\
-                             shared(bxs,sorted_coords,P,coords)
+                             shared(bxs,sorted_coords,P,coords,epa)
     for (i=0; i < n_rows; ++i) {
       ref_1 = coords[i_col[0]*n_rows+i];
       ref_2 = coords[i_col[1]*n_rows+i];
       for (k=bxs[i][0]; k <= bxs[i][1]; ++k) {
-        P[i] += epanechnikov(ref_1, sorted_coords[k], h[0])
-              * epanechnikov(ref_2, sorted_coords[n_rows+k], h[1]);
+        P[i] += epa(ref_1, sorted_coords[k], h[0])
+              * epa(ref_2, sorted_coords[n_rows+k], h[1]);
       }
       P[i] /= n_rows;
     }
@@ -128,6 +160,7 @@ namespace {
              , std::vector<unsigned int> i_col
              , const std::vector<float>& sorted_coords
              , std::vector<float> h) {
+    Densities::OMP::epanechnikov epa;
     std::size_t n_rows = sorted_coords.size() / 3;
     std::vector<float> P(n_rows);
     Boxes bxs = boxes(coords
@@ -140,15 +173,15 @@ namespace {
     #pragma omp parallel for default(none)\
                              private(ref_1,ref_2,ref_3,i,k)\
                              firstprivate(i_col,n_rows,h)\
-                             shared(bxs,sorted_coords,P,coords)
+                             shared(bxs,sorted_coords,P,coords,epa)
     for (i=0; i < n_rows; ++i) {
       ref_1 = coords[i_col[0]*n_rows+i];
       ref_2 = coords[i_col[1]*n_rows+i];
       ref_3 = coords[i_col[2]*n_rows+i];
       for (k=bxs[i][0]; k <= bxs[i][1]; ++k) {
-        P[i] += epanechnikov(ref_1, sorted_coords[k], h[0])
-              * epanechnikov(ref_2, sorted_coords[n_rows+k], h[1])
-              * epanechnikov(ref_3, sorted_coords[2*n_rows+k], h[2]);
+        P[i] += epa(ref_1, sorted_coords[k], h[0])
+              * epa(ref_2, sorted_coords[n_rows+k], h[1])
+              * epa(ref_3, sorted_coords[2*n_rows+k], h[2]);
       }
       P[i] /= n_rows;
     }

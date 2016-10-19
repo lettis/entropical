@@ -125,11 +125,6 @@ namespace Tools {
                 << std::endl;
       exit(EXIT_FAILURE);
     }
-    // prepare data
-    std::vector<NUM> h_inv(n_dim);
-    for (unsigned int n=0; n < n_dim; ++n) {
-      h_inv[n] = 1.0f/h[n];
-    }
     // create filtered coords (row-major order)
     // from original coords (col-major order)
     // honoring lagtimes tau

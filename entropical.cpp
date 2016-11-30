@@ -20,7 +20,6 @@
 #include "kldiv.hpp"
 #include "dens.hpp"
 #include "negs.hpp"
-#include "amise.hpp"
 #include "hestimate.hpp"
 
 int main(int argc, char* argv[]) {
@@ -58,7 +57,7 @@ int main(int argc, char* argv[]) {
     "  dens:      compute local probability densities in 1, 2 or 3 dimensions\n"
     "  negs:      compute negentropies\n"
     "  amise:     estimate bandwidths from AMISE-minimization\n"
-    "  hestimate: estimate bandwidths from rule-of-thumb\n\n"
+    "  thumb:     estimate bandwidths from rule-of-thumb\n\n"
     "usage:\n"
     "  entropical MODE --option1 --option2 ...\n\n"
     "for a list of available options per mode, run with '-h' option, e.g.\n"
@@ -70,14 +69,14 @@ int main(int argc, char* argv[]) {
            , DENS
            , NEGS
            , AMISE
-           , HESTIMATE};
+           , THUMB};
   std::map<std::string, Mode> mode_mapping {{"transs", TRANSS}
                                           , {"kldiv", KLDIV}
                                           , {"mi", MI}
                                           , {"dens", DENS}
                                           , {"negs", NEGS}
                                           , {"amise", AMISE}
-                                          , {"hestimate", HESTIMATE}};
+                                          , {"thumb", THUMB}};
   Mode mode;
   if (argc <= 2) {
     std::cerr << general_help;
@@ -173,10 +172,10 @@ int main(int argc, char* argv[]) {
       "bandwidths for univariate density estimation"
       " as space separated values.")
   ;
-  // hestimate
-  po::options_description opts_hestimate(
-    "hestimate - estimate probability kernel bandwidths via rule-of-thumb");
-  opts_hestimate.add(opts_common);
+  // thumb
+  po::options_description opts_thumb(
+    "thumb - estimate probability kernel bandwidths via rule-of-thumb");
+  opts_thumb.add(opts_common);
 
   // option parsing
   po::variables_map args;
@@ -187,7 +186,7 @@ int main(int argc, char* argv[]) {
   , {DENS, opts_dens}
   , {NEGS, opts_negs}
   , {AMISE, opts_amise}
-  , {HESTIMATE, opts_hestimate}};
+  , {THUMB, opts_thumb}};
   try {
     po::store(po::command_line_parser(argc, argv)
                 .options(opts[mode])
@@ -206,8 +205,8 @@ int main(int argc, char* argv[]) {
     subroutines[KLDIV] = KLDiv::main;
     subroutines[DENS] = Dens::main;
     subroutines[NEGS] = Negs::main;
-    subroutines[AMISE] = Amise::main;
-    subroutines[HESTIMATE] = Hestimate::main;
+    subroutines[AMISE] = Hestimate::Amise::main;
+    subroutines[THUMB] = Hestimate::Thumb::main;
     // ... and run corresponding subroutine
     subroutines[mode](args);
   } catch (const boost::bad_any_cast& e) {

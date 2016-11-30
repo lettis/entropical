@@ -47,7 +47,6 @@ set(ENTROPICAL_SRC entropical.cpp
                    kldiv.cpp
                    dens.cpp
                    negs.cpp
-                   amise.cpp
                    hestimate.cpp
                    tools.cpp)
 

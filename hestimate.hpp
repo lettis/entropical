@@ -32,6 +32,18 @@ namespace Hestimate {
       operator()(float* coords
                , std::size_t n_rows
                , std::size_t i_col);
+     private:
+      float* _coords;
+      std::size_t _n_rows;
+      std::size_t _i_col;
+      // amise estimator for given bandwidth h
+      float
+      _amise(float h);
+      // newton optimizer [min(AMISE)] for bandwidth
+      float
+      _newton_optimized_h(float h0
+                        , float delta_h
+                        , unsigned int iter_max);
     };
 
     void

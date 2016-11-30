@@ -31,10 +31,28 @@ namespace Hestimate {
   namespace Amise {
 
     float
+    Kernel::_amise(float h) {
+      //TODO
+    }
+
+    float
+    Kernel::_newton_optimized_h(float h0
+                              , float delta_h
+                              , unsigned int iter_max) {
+      //TODO
+    }
+
+    float
     Kernel::operator()(float* coords
                      , std::size_t n_rows
                      , std::size_t i_col) {
-      //TODO
+      // initialize private members for minimization subroutines
+      _coords = coords;
+      _n_rows = n_rows;
+      _i_col = i_col;
+      //TODO: get first estimate for bandwidth from rule of thumb
+      //TODO: minimize amise with newton's help
+      //TODO: return optimal h
     }
   
     void

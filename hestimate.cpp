@@ -55,12 +55,21 @@ namespace Hestimate {
                               //   negative bandwidth for initial recursion
                               , unsigned int iter_max = 20
                               , float h_prev = -1.0) {
+//TODO DEBUG
+std::cerr << iter_max << " " << h << std::endl;
+
       if ((iter_max == 0)
        || (h_prev > 0 && abs(h-h_prev) < delta_h)  ) {
+//TODO DEBUG
+std::cerr << "minimization finished" << std::endl;
+
         // either max. iterations or convergence reached
         return h;
       } else {
         float y = _amise(h);
+//TODO DEBUG
+std::cerr << "amise: " << y << std::endl << std::endl;
+
         float y1 = _amise(h+delta_h);
         float a = (y-y1)/delta_h;
         h_prev = h;

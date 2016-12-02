@@ -14,7 +14,7 @@ combined_densities(const float* coords
                  , std::vector<float> h);
 
 /**
- * Perform combined density computation for 1-3 observables.
+ * Perform combined density computation for 1-3 observables with time lags.
  */
 std::vector<float>
 combined_densities(const float* coords

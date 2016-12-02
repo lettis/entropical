@@ -22,7 +22,7 @@ namespace Hestimate {
   } // end Hestimate::Thumb
 
 
-  namespace Amise {
+  namespace AmiseMin {
 
     struct Kernel {
       /**
@@ -33,23 +33,22 @@ namespace Hestimate {
                , std::size_t n_rows
                , std::size_t i_col);
      private:
-      float* _coords;
-      std::size_t _n_rows;
-      std::size_t _i_col;
+      std::vector<float> _sorted_coords;
       // amise estimator for given bandwidth h
       float
       _amise(float h);
       // newton optimizer [min(AMISE)] for bandwidth
       float
-      _newton_optimized_h(float h0
+      _newton_optimized_h(float h
                         , float delta_h
-                        , unsigned int iter_max);
+                        , unsigned int iter_max
+                        , float h_prev);
     };
 
     void
     main(boost::program_options::variables_map args);
 
-  } // end Hestimate::Amise
+  } // end Hestimate::AmiseMin
 
 
   /**

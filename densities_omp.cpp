@@ -23,32 +23,6 @@ namespace OMP {
     return (u_squared <= 1.0f ? 0.75 * (1.0f-u_squared) : 0.0f) / h;
   }
 
-  float
-  epanechnikov_var::operator() (float ref_val
-                              , float val
-                              , float h) const {
-    float u_squared = (ref_val-val) / h;
-    u_squared *= u_squared;
-    if (u_squared <= 1.0f) {
-      u_squared = 1.0f - u_squared;
-      return u_squared*u_squared;
-    } else {
-      return 0.0f;
-    }
-  }
-
-  float
-  epanechnikov_bias::operator() (float ref_val
-                               , float val
-                               , float h) const {
-    float u_squared = (ref_val-val) / h;
-    u_squared *= u_squared;
-    if (u_squared <= 1.0f) {
-      return u_squared * (1.0f-u_squared);
-    } else {
-      return 0.0f;
-    }
-  }
 }} // end namespace Densities::OMP
 
 namespace {
@@ -88,8 +62,6 @@ namespace {
     return bxs;
   }
 
-  //TODO: 1d meta func with adaptable kernel for densities, var, bias
-
   std::vector<float>
   densities_1d(const float* coords
              , std::vector<unsigned int> i_col
@@ -120,10 +92,6 @@ namespace {
     return P;
   }
 
-  //TODO: var_1d
-  //TODO: bias_1d
-
-  
   std::vector<float>
   densities_2d(const float* coords
              , std::vector<unsigned int> i_col
@@ -261,3 +229,40 @@ combined_densities(const float* coords
       exit(EXIT_FAILURE);
   }
 }
+
+float
+epa_convolution(std::vector<float>& sorted_coords
+              , float h) {
+  // implementation of Epanechnikov kernel convolution:
+  //   1/N^2 sum_i sum_j K*K((xi-xj)/h)
+  // = 1/N^2 sum_i sum_j (9/2 - 9/4*abs((xi-xj)/h)) * (abs((xi-xj)/h) <= 2)
+  std::size_t i;
+  std::size_t j;
+  std::size_t n_rows = sorted_coords.size();
+  float coords_i;
+  float d;
+  float acc = 0.0f;
+  #pragma omp parallel for default(none)\
+                           private(coords_i,d,i,j)\
+                           firstprivate(n_rows,h)\
+                           shared(sorted_coords)\
+                           reduction(+:acc)\
+                           schedule(dynamic)
+  for (i=0; i < n_rows; ++i) {
+    coords_i = sorted_coords[i];
+    for (j=i+1; j < n_rows; ++j) {
+      d = std::abs(coords_i - sorted_coords[j]) / h;
+      if (d <= 2) {
+        // count twice for symmetry of {ij}-summation
+        acc += 2 * (4.5 - 2.25*d);
+      } else {
+        // coords are sorted:
+        // if pairs not in range now,
+        // they won't be in future
+        break;
+      }
+    }
+  }
+  return acc / (n_rows*n_rows);
+}
+

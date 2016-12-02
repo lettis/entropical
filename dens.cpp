@@ -25,6 +25,7 @@ namespace Dens {
     unsigned int n_selected_cols = selected_cols.size();
     unsigned int j;
     //// compute probability densities with OpenMP on CPU
+    //// or with CUDA on GPU, depending on compilation
     for (unsigned int j=0; j < n_selected_cols; ++j) {
       densities[j] = combined_densities(coords
                                       , n_rows

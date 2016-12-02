@@ -205,7 +205,7 @@ int main(int argc, char* argv[]) {
     subroutines[KLDIV] = KLDiv::main;
     subroutines[DENS] = Dens::main;
     subroutines[NEGS] = Negs::main;
-    subroutines[AMISE] = Hestimate::Amise::main;
+    subroutines[AMISE] = Hestimate::AmiseMin::main;
     subroutines[THUMB] = Hestimate::Thumb::main;
     // ... and run corresponding subroutine
     subroutines[mode](args);

@@ -149,6 +149,9 @@ int main(int argc, char* argv[]) {
     ("bandwidths,H", po::value<std::string>()->default_value(""),
       "bandwidths for univariate density estimation"
       " as space separated values.")
+    ("taus", po::value<std::string>()->default_value(""),
+      "lag times for probability density estimation "
+      "(must be equal to # of dimensions; default: no time lag.)")
     ("dims,D", po::value<unsigned int>()->default_value(1),
       "kernel dimensionality for multivariate density estimation (dens)")
   ;
@@ -167,10 +170,10 @@ int main(int argc, char* argv[]) {
   po::options_description opts_amise(
     "amise - estimate probability kernel bandwidths via amise-minimization");
   opts_amise.add(opts_common);
-  opts_amise.add_options()
-    ("bandwidths,H", po::value<std::string>()->default_value(""),
-      "bandwidths for univariate density estimation"
-      " as space separated values.")
+//  opts_amise.add_options()
+//    ("bandwidths,H", po::value<std::string>()->default_value(""),
+//      "bandwidths for univariate density estimation"
+//      " as space separated values.")
   ;
   // thumb
   po::options_description opts_thumb(

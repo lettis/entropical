@@ -230,39 +230,50 @@ combined_densities(const float* coords
   }
 }
 
+
 float
 epa_convolution(std::vector<float>& sorted_coords
               , float h) {
   // implementation of Epanechnikov kernel convolution:
   //   1/N^2 sum_i sum_j K*K((xi-xj)/h)
-  // = 1/N^2 sum_i sum_j (9/2 - 9/4*abs((xi-xj)/h)) * (abs((xi-xj)/h) <= 2)
+  // = 1/N^2 sum_i sum_j (9/2 - 9/4*abs((xi-xj)/h)) * [abs((xi-xj)/h) <= 2]
   std::size_t i;
   std::size_t j;
   std::size_t n_rows = sorted_coords.size();
   float coords_i;
   float d;
-  float acc = 0.0f;
-  #pragma omp parallel for default(none)\
-                           private(coords_i,d,i,j)\
-                           firstprivate(n_rows,h)\
-                           shared(sorted_coords)\
-                           reduction(+:acc)\
-                           schedule(dynamic)
+
+  std::vector<double> outer_cache(n_rows);
+  std::vector<double> inner_cache(n_rows);
+
+//  #pragma omp parallel for default(none)\
+//                           private(coords_i,d,i,j)\
+//                           firstprivate(n_rows,h)\
+//                           shared(sorted_coords)\
+//                           reduction(+:acc)
   for (i=0; i < n_rows; ++i) {
     coords_i = sorted_coords[i];
-    for (j=i+1; j < n_rows; ++j) {
+    for (j=0; j < n_rows; ++j) {
       d = std::abs(coords_i - sorted_coords[j]) / h;
       if (d <= 2) {
-        // count twice for symmetry of {ij}-summation
-        acc += 2 * (4.5 - 2.25*d);
-      } else {
+        ++acc_i;
+//        acc += (4.5 - 2.25*d);
+        acc += d;
+//      } else {
         // coords are sorted:
         // if pairs not in range now,
         // they won't be in future
-        break;
+        //break;
       }
     }
   }
+
+std::cerr << "acc1: " << acc << std::endl;
+  acc *= -2.25;
+std::cerr << "acc2: " << acc << std::endl;
+  acc += acc_i * 4.5;
+std::cerr << "acc3: " << acc << std::endl;
+
   return acc / (n_rows*n_rows);
 }
 

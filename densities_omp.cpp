@@ -3,6 +3,7 @@
 #include "tools.hpp"
 
 #include <array>
+#include <cmath>
 
 #include <omp.h>
 
@@ -230,50 +231,47 @@ combined_densities(const float* coords
   }
 }
 
-
 float
-epa_convolution(std::vector<float>& sorted_coords
+epa_convolution(const std::vector<float>& sorted_coords
               , float h) {
   // implementation of Epanechnikov kernel convolution:
   //   1/N^2 sum_i sum_j K*K((xi-xj)/h)
   // = 1/N^2 sum_i sum_j (9/2 - 9/4*abs((xi-xj)/h)) * [abs((xi-xj)/h) <= 2]
   std::size_t i;
   std::size_t j;
+  std::size_t low_j, high_j;
   std::size_t n_rows = sorted_coords.size();
   float coords_i;
   float d;
 
-  std::vector<double> outer_cache(n_rows);
-  std::vector<double> inner_cache(n_rows);
-
-//  #pragma omp parallel for default(none)\
-//                           private(coords_i,d,i,j)\
-//                           firstprivate(n_rows,h)\
-//                           shared(sorted_coords)\
-//                           reduction(+:acc)
+  std::vector<float> outer_cache(n_rows);
   for (i=0; i < n_rows; ++i) {
+    std::vector<float> inner_cache(n_rows);
     coords_i = sorted_coords[i];
+    low_j = 0;
+    high_j = n_rows-1;
+    #pragma omp parallel for default(none)\
+                             private(j,d)\
+                             firstprivate(n_rows,h,coords_i,i)\
+                             shared(sorted_coords,inner_cache,high_j,low_j)\
+                             schedule(dynamic,128)
     for (j=0; j < n_rows; ++j) {
+      if (j < low_j || high_j < j) {
+        continue;
+      }
       d = std::abs(coords_i - sorted_coords[j]) / h;
       if (d <= 2) {
-        ++acc_i;
-//        acc += (4.5 - 2.25*d);
-        acc += d;
-//      } else {
-        // coords are sorted:
-        // if pairs not in range now,
-        // they won't be in future
-        //break;
+        inner_cache[j] = std::fma(d, -2.25, 4.5);
+      } else {
+        if (j < i) {
+          low_j = j;
+        } else {
+          high_j = j;
+        }
       }
     }
+    outer_cache[i] = Tools::kahan_sum(inner_cache);
   }
-
-std::cerr << "acc1: " << acc << std::endl;
-  acc *= -2.25;
-std::cerr << "acc2: " << acc << std::endl;
-  acc += acc_i * 4.5;
-std::cerr << "acc3: " << acc << std::endl;
-
-  return acc / (n_rows*n_rows);
+  return Tools::kahan_sum(outer_cache) / (n_rows*n_rows);
 }
 

@@ -89,3 +89,12 @@ combined_densities(const float* coords
                  , h_inv);
 }
 
+
+
+
+
+
+
+
+
+

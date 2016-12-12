@@ -37,12 +37,12 @@ namespace Hestimate {
       // amise estimator for given bandwidth h
       float
       _amise(float h);
-      // newton optimizer [min(AMISE)] for bandwidth
+      // interval optimizer [min(AMISE)] for bandwidth
       float
-      _newton_optimized_h(float h
-                        , float delta_h
-                        , unsigned int iter_max
-                        , float h_prev);
+      _interval_optimized_h(float prec
+                          , float h_lower_bound
+                          , float h_upper_bound
+                          , unsigned int iter_max);
     };
 
     void

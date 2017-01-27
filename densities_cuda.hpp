@@ -23,3 +23,10 @@ combined_densities(const float* coords
                  , std::vector<float> h
                  , std::vector<unsigned int> tau);
 
+/**
+ * Compute convolution of Epanechnikov kernel for AMISE estimation
+ */
+float
+epa_convolution(const std::vector<float>& sorted_coords
+              , float h);
+

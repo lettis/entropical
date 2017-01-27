@@ -2,8 +2,11 @@
 #include "hestimate.hpp"
 #include "tools.hpp"
 
-//TODO: CUDA?
-#include "densities_omp.hpp"
+#ifdef USE_CUDA
+  #include "densities_omp.hpp"
+#else
+  #include "densities_cuda.hpp"
+#endif
 
 #include <boost/accumulators/accumulators.hpp>
 #include <boost/accumulators/statistics/variance.hpp>

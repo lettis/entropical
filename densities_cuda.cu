@@ -6,6 +6,8 @@
 #include "density_2d.cuh"
 #include "density_3d.cuh"
 
+#include "epa_conv.cuh"
+
 #define BSIZE 128
 
 std::vector<float>
@@ -89,12 +91,13 @@ combined_densities(const float* coords
                  , h_inv);
 }
 
-
-
-
-
-
-
-
-
+float
+epa_convolution(const std::vector<float>& sorted_coords
+              , float h) {
+  return epa_conv<float
+                , float
+                , BSIZE>(sorted_coords.data()
+                       , sorted_coords.size()
+                       , 1/h);
+}
 

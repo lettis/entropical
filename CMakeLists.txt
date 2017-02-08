@@ -72,7 +72,7 @@ endif()
 set (PROGNAME entropical)
 
 if(${USE_CUDA})
-  set (PROGNAME ${PROGNAME}.cuda)
+  #  set (PROGNAME ${PROGNAME}.cuda)
   cuda_add_executable(${PROGNAME} ${ENTROPICAL_SRC})
 else()
   add_executable(${PROGNAME} ${ENTROPICAL_SRC})

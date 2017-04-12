@@ -1,4 +1,5 @@
 
+#include "densities_common.hpp"
 #include "densities_omp.hpp"
 #include "tools.hpp"
 
@@ -196,13 +197,13 @@ combined_densities(const float* coords
                  , std::vector<float> h
                  , std::vector<unsigned int> tau) {
   // select coords according to tau values
-  std::vector<float> sel_coords = Tools::prob_dens_coord_prep(coords
-                                                            , n_rows
-                                                            , i_cols
-                                                            , h
-                                                            , tau
-                                                        // row-major result?
-                                                            , false);
+  std::vector<float> sel_coords = prob_dens_coord_prep(coords
+                                                     , n_rows
+                                                     , i_cols
+                                                     , h
+                                                     , tau
+                                                 // row-major result?
+                                                     , false);
   // sort coordinates along first dimension for efficient density estimation
   std::vector<float> sorted_coords = Tools::dim1_sorted_coords(
                                        sel_coords.data()

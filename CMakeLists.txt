@@ -33,13 +33,12 @@ else()
   add_definitions(-DNDEBUG)
 endif()
 
-
-set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR})
-
-add_subdirectory(coords_file)
+#set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR})
 
 find_package(Boost 1.49 COMPONENTS program_options REQUIRED)
 include_directories (${Boost_INCLUDE_DIR})
+
+add_subdirectory(coords_file)
 
 set(ENTROPICAL_SRC entropical.cpp
                    mi.cpp
@@ -60,6 +59,7 @@ if(${USE_CUDA})
   set(CUDA_NVCC_FLAGS                     "-std=c++11")
   set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} ";-Xcompiler -fopenmp")
   set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} ";-O3;-DVERBOSE")
+  set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} ";-arch=compute_30")
   set (ENTROPICAL_SRC ${ENTROPICAL_SRC} densities_cuda.cu)
   set (ENTROPICAL_LIBS ${ENTROPICAL_LIBS} ${CUDA_LIBRARIES})
   include_directories (${CUDA_INCLUDE_DIRS})

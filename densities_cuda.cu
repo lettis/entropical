@@ -1,12 +1,14 @@
 
+#include "densities_common.hpp"
 #include "densities_cuda.hpp"
-#include "tools.hpp"
 
 #include "density_1d.cuh"
 #include "density_2d.cuh"
 #include "density_3d.cuh"
 
 #include "epa_conv.cuh"
+
+#include <functional>
 
 #define BSIZE 128
 
@@ -47,13 +49,13 @@ combined_densities(const float* coords
                  , std::vector<float> h
                  , std::vector<unsigned int> tau) {
   // select coords according to tau values
-  std::vector<float> sel_coords = Tools::prob_dens_coord_prep(coords
-                                                            , n_rows
-                                                            , i_cols
-                                                            , h
-                                                            , tau
-                                                        // row-major result?
-                                                            , true);
+  std::vector<float> sel_coords = prob_dens_coord_prep(coords
+                                                     , n_rows
+                                                     , i_cols
+                                                     , h
+                                                     , tau
+                                                 // row-major result?
+                                                     , true);
 
   unsigned int n_dim = i_cols.size();
 

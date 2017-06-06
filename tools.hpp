@@ -51,6 +51,13 @@ namespace Tools {
   sum1_normalized(std::vector<FLOAT> xs);
 
   /**
+   * returns x if zero, otherwise 1/x
+   */
+  template <typename FLOAT>
+  FLOAT
+  inv(FLOAT x);
+
+  /**
    * @returns -1.0 if negative, 1.0 if positive or zero
    */
   template <typename FLOAT>
@@ -92,6 +99,11 @@ namespace Tools {
                    , std::vector<unsigned int> col_indices);
 
   /**
+   * Returns a log-function, with either base-2 or base-e.
+   * The log functions are additionally wrapped to return
+   * zero if their argument is zero.
+   * That protects the entropies from NaN-values and infinities.
+   *
    * @returns log2 if using bits, else log.
    */
   std::function<float(float)>

@@ -90,14 +90,44 @@ namespace Transs {
                                         , 0
                                         , tau}));
         for (unsigned int k=0; k < n_rows; ++k) {
-          transs[i*n_cols+j] += p_ij_itau[k] * logfunc(p_ij_itau[k]
-                                                     * p[i][k]
-                                                     / p_ij[k]
-                                                     / p_tau[i][k]);
-          transs[j*n_cols+i] += p_ij_jtau[k] * logfunc(p_ij_jtau[k]
-                                                     * p[j][k]
-                                                     / p_ij[k]
-                                                     / p_tau[j][k]);
+
+
+
+//TODO: check: why NaN if 'if' is not used?
+//          if (p_ij_itau[k] > 0) {
+//            transs[i*n_cols+j] += p_ij_itau[k]
+//                                    * logfunc(p_ij_itau[k]
+//                                            * p[i][k]
+//                                            * Tools::inv(p_ij[k])
+//                                            * Tools::inv(p_tau[i][k]));
+//          }
+//          if (p_ij_jtau[k] > 0) {
+//            transs[j*n_cols+i] += p_ij_jtau[k]
+//                                    * logfunc(p_ij_jtau[k]
+//                                            * p[j][k]
+//                                            * Tools::inv(p_ij[k])
+//                                            * Tools::inv(p_tau[j][k]));
+//          }
+
+
+          if (p_ij[k] > 0) {
+            if (p[i][k] > 0
+             && p_ij_itau[k] > 0
+             && p_tau[i][k] > 0) {
+              transs[i*n_cols+j] += p_ij_itau[k] * logfunc(p_ij_itau[k]
+                                                         * p[i][k]
+                                                         / p_ij[k]
+                                                         / p_tau[i][k]);
+            }
+            if (p[j][k] > 0
+             && p_ij_jtau[k] > 0
+             && p_tau[j][k] > 0) {
+              transs[j*n_cols+i] += p_ij_jtau[k] * logfunc(p_ij_jtau[k]
+                                                         * p[j][k]
+                                                         / p_ij[k]
+                                                         / p_tau[j][k]);
+            }
+          }
         }
       }
     }

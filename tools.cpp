@@ -19,11 +19,19 @@ namespace Tools {
   select_log(bool use_bits) {
     if (use_bits) {
       return [](float x) -> float {
-               return std::log2(x);
+               if (x == 0) {
+                 return 0;
+               } else {
+                 return std::log2(x);
+               }
              };
     } else {
       return [](float x) -> float {
-               return std::log(x);
+               if (x == 0) {
+                 return 0;
+               } else {
+                 return std::log(x);
+               }
              };
     }
   }

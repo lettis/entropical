@@ -34,10 +34,22 @@ namespace Tools {
   std::vector<FLOAT>
   sum1_normalized(std::vector<FLOAT> xs) {
     FLOAT sum = kahan_sum(xs);
-    for (FLOAT& x: xs) {
-      x /= sum;
+    if (sum != 0) {
+      for (FLOAT& x: xs) {
+        x /= sum;
+      }
     }
     return xs;
+  }
+
+  template<typename FLOAT>
+  FLOAT
+  inv(FLOAT x) {
+    if (x == 0) {
+      return x;
+    } else {
+      return 1.0/x;
+    }
   }
 
   template <typename FLOAT>
@@ -263,7 +275,7 @@ namespace IO {
            , std::vector<NUM>>
   selected_coords_bandwidths(std::string fname_coords
                            , std::string columns
-                           , std::string bandwidths) {
+                           , std::string fname_bandwidths) {
     std::vector<std::size_t> selected_cols;
     NUM* coords;
     std::size_t n_rows;
@@ -272,15 +284,31 @@ namespace IO {
       = Tools::IO::selected_coords<NUM>(fname_coords
                                       , columns);
     std::vector<NUM> hs;
-    using Tools::String::split;
-    for (std::string h: split(bandwidths
-                            , ' '
-                            , true)) {
-      hs.push_back(std::stof(h));
+    {
+      NUM buf;
+      std::ifstream ifs(fname_bandwidths);
+      while (ifs.good()) {
+        ifs >> buf;
+        if (ifs.good()) {
+          hs.push_back(buf);
+        }
+      }
     }
+//    using Tools::String::split;
+//    for (std::string h: split(bandwidths
+//                            , ' '
+//                            , true)) {
+//      hs.push_back(std::stof(h));
+//    }
     if (hs.size() != selected_cols.size()) {
       std::cerr << "error: number of given bandwidth values does not match"
                          " the number of selected columns!" << std::endl;
+//    std::cerr << "no selected columns: " << selected_cols.size() << "   ";
+//    std::cerr << "bandwidthds: ";
+//    for (auto h: hs) {
+//      std::cerr << " " << h;
+//    }
+//    std::cerr << std::endl;
       exit(EXIT_FAILURE);
     }
     return std::make_tuple(selected_cols

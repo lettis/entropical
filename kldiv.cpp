@@ -33,19 +33,19 @@ namespace KLDiv {
                                         , args["bandwidths"].as<std::string>());
     // compute Kullback-Leibler divergence
     using Tools::sum1_normalized;
-    std::vector<float> kldiv(n_cols*n_cols, 0.0f);
+    std::vector<double> kldiv(n_cols*n_cols, 0.0f);
     for (unsigned int i=0; i < n_cols; ++i) {
-      std::vector<float> p_i = sum1_normalized(
-                                 combined_densities(coords
-                                                  , n_rows
-                                                  , {i}
-                                                  , {bandwidths[i]}));
+      std::vector<double> p_i = sum1_normalized(
+                                  combined_densities(coords
+                                                   , n_rows
+                                                   , {i}
+                                                   , {bandwidths[i]}));
       for (unsigned int j=i+1; j < n_cols; ++j) {
-        std::vector<float> p_j = sum1_normalized(
-                                   combined_densities(coords
-                                                    , n_rows
-                                                    , {j}
-                                                    , {bandwidths[j]}));
+        std::vector<double> p_j = sum1_normalized(
+                                    combined_densities(coords
+                                                     , n_rows
+                                                     , {j}
+                                                     , {bandwidths[j]}));
         for (unsigned int k=0; k < n_rows; ++k) {
           kldiv[i*n_cols+j] += p_i[k] * logfunc(p_i[k] / p_j[k]);
           kldiv[j*n_cols+i] += p_j[k] * logfunc(p_j[k] / p_i[k]);

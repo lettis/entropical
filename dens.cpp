@@ -16,12 +16,12 @@
 
 namespace Dens {
 
-  std::vector<std::vector<float>>
+  std::vector<std::vector<double>>
   compute_densities_1d(std::vector<std::size_t> selected_cols
                      , const float* coords
                      , std::size_t n_rows
                      , std::vector<float> bandwidths) {
-    std::vector<std::vector<float>> densities(selected_cols.size());
+    std::vector<std::vector<double>> densities(selected_cols.size());
     unsigned int n_selected_cols = selected_cols.size();
     unsigned int j;
     //// compute probability densities with OpenMP on CPU
@@ -45,7 +45,7 @@ namespace Dens {
     return densities;
   }
 
-  std::tuple<std::vector<std::vector<float>>, std::vector<std::string>>
+  std::tuple<std::vector<std::vector<double>>, std::vector<std::string>>
   compute_densities_nd(std::vector<std::size_t> selected_cols
                      , const float* coords
                      , std::size_t n_rows
@@ -53,7 +53,7 @@ namespace Dens {
                      , unsigned int dim_kernel
                      , std::vector<unsigned int> taus) {
     std::vector<std::string> labels;
-    std::vector<std::vector<float>> densities;
+    std::vector<std::vector<double>> densities;
     unsigned int n_selected_cols = selected_cols.size();
     // construct indices
     std::vector<std::vector<unsigned int>> indices;
@@ -79,11 +79,11 @@ namespace Dens {
     }
     // compute probs
     for (unsigned int i=0; i < indices.size(); ++i) {
-      std::vector<float> dens = combined_densities(coords
-                                                 , n_rows
-                                                 , indices[i]
-                                                 , hs[i]
-                                                 , taus);
+      std::vector<double> dens = combined_densities(coords
+                                                  , n_rows
+                                                  , indices[i]
+                                                  , hs[i]
+                                                  , taus);
       densities.push_back(dens);
       std::string lbl = std::to_string(selected_cols[indices[i][0]])
                       + "_"
@@ -131,7 +131,7 @@ namespace Dens {
                                         , args["columns"].as<std::string>()
                                         , args["bandwidths"].as<std::string>());
     // run computation
-    std::vector<std::vector<float>> densities;
+    std::vector<std::vector<double>> densities;
     if (dim_kernel == 1) {
       if (args["taus"].as<std::string>() != "") {
         std::cerr << "error: definition of lagtimes (taus) for 1d probability "

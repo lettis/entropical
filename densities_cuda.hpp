@@ -7,7 +7,7 @@
  * Perform combined density computation for 1-3 observables.
  * tau defaults to zero.
  */
-std::vector<float>
+std::vector<double>
 combined_densities(const float* coords
                  , std::size_t n_rows
                  , std::vector<unsigned int> i_cols
@@ -16,7 +16,7 @@ combined_densities(const float* coords
 /**
  * Perform combined density computation for 1-3 observables with time lags.
  */
-std::vector<float>
+std::vector<double>
 combined_densities(const float* coords
                  , std::size_t n_rows
                  , std::vector<unsigned int> i_cols

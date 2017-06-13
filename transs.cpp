@@ -36,9 +36,9 @@ namespace Transs {
                                         , args["bandwidths"].as<std::string>());
     // compute transfer entropies
     using Tools::sum1_normalized;
-    std::vector<std::vector<float>> p(n_cols);
-    std::vector<std::vector<float>> p_tau(n_cols);
-    std::vector<float> transs(n_cols*n_cols, 0.0f);
+    std::vector<std::vector<double>> p(n_cols);
+    std::vector<std::vector<double>> p_tau(n_cols);
+    std::vector<double> transs(n_cols*n_cols, 0.0);
     for (unsigned int i=0; i < n_cols; ++i) {
       p[i] = sum1_normalized(
               combined_densities(coords
@@ -57,7 +57,7 @@ namespace Transs {
     }
     for (unsigned int i=0; i < n_cols; ++i) {
       for (unsigned int j=i+1; j < n_cols; ++j) {
-        std::vector<float> p_ij, p_ij_itau, p_ij_jtau;
+        std::vector<double> p_ij, p_ij_itau, p_ij_jtau;
         p_ij = sum1_normalized(
                  combined_densities(coords
                                   , n_rows
@@ -89,43 +89,42 @@ namespace Transs {
                                        , {0
                                         , 0
                                         , tau}));
-        for (unsigned int k=0; k < n_rows; ++k) {
-
-
-
-//TODO: check: why NaN if 'if' is not used?
-//          if (p_ij_itau[k] > 0) {
-//            transs[i*n_cols+j] += p_ij_itau[k]
-//                                    * logfunc(p_ij_itau[k]
-//                                            * p[i][k]
-//                                            * Tools::inv(p_ij[k])
-//                                            * Tools::inv(p_tau[i][k]));
-//          }
-//          if (p_ij_jtau[k] > 0) {
-//            transs[j*n_cols+i] += p_ij_jtau[k]
-//                                    * logfunc(p_ij_jtau[k]
-//                                            * p[j][k]
-//                                            * Tools::inv(p_ij[k])
-//                                            * Tools::inv(p_tau[j][k]));
-//          }
-
-
-          if (p_ij[k] > 0) {
-            if (p[i][k] > 0
-             && p_ij_itau[k] > 0
-             && p_tau[i][k] > 0) {
-              transs[i*n_cols+j] += p_ij_itau[k] * logfunc(p_ij_itau[k]
-                                                         * p[i][k]
-                                                         / p_ij[k]
-                                                         / p_tau[i][k]);
+        for (unsigned int k=0; k < n_rows-tau; ++k) {
+          double te;
+          if (p_ij_itau[k] > 0) {
+            te = p_ij_itau[k]
+                   * logfunc(p_ij_itau[k]
+                           * p[i][k]
+                           * Tools::inv(p_ij[k])
+                           * Tools::inv(p_tau[i][k]));
+            if (std::isfinite(te) && (p_ij_itau[k] <= 1.0)) {
+              transs[i*n_cols+j] += te;
+            } else {
+              std::cerr << "strange values in TE("
+                        << i+1 << ", " << j+1 << "): "
+                        << "p_ij_itau = " << p_ij_itau[k] << ",  "
+                        << "p_i = " << p[i][k] << ",  "
+                        << "p_ij = " << p_ij[k] << ",  "
+                        << "p_itau = " << p_tau[i][k] << ",  "
+                        << "k = " << k << std::endl;
             }
-            if (p[j][k] > 0
-             && p_ij_jtau[k] > 0
-             && p_tau[j][k] > 0) {
-              transs[j*n_cols+i] += p_ij_jtau[k] * logfunc(p_ij_jtau[k]
-                                                         * p[j][k]
-                                                         / p_ij[k]
-                                                         / p_tau[j][k]);
+          }
+          if (p_ij_jtau[k] > 0) {
+            te = p_ij_jtau[k]
+                   * logfunc(p_ij_jtau[k]
+                           * p[j][k]
+                           * Tools::inv(p_ij[k])
+                           * Tools::inv(p_tau[j][k]));
+            if (std::isfinite(te) && (p_ij_jtau[k] <= 1.0)) {
+              transs[j*n_cols+i] += te;
+            } else {
+              std::cerr << "strange values in TE("
+                        << i+1 << ", " << j+1 << "): "
+                        << "p_ij_jtau = " << p_ij_jtau[k] << ",  "
+                        << "p_j = " << p[j][k] << ",  "
+                        << "p_ij = " << p_ij[k] << ",  "
+                        << "p_jtau = " << p_tau[j][k] << ",  "
+                        << "k = " << k << std::endl;
             }
           }
         }

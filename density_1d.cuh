@@ -133,6 +133,12 @@ density_1d_per_gpu(const type_in* coords
   if (blockrange*blocksize < (i_to-i_from)) {
     ++blockrange;
   }
+
+
+  //TODO: sort coords, run loop over parts with
+  //      coords[i*blocksize] between coords[i_from] and coords[i_to]
+  //      ( + bandwidth overlaps)
+
   // run computation
   for (unsigned int i=0; i*blocksize < n_rows; ++i) {
     density_1d_krnl <<< blockrange

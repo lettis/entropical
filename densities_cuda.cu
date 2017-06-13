@@ -12,7 +12,7 @@
 
 #define BSIZE 128
 
-std::vector<float>
+std::vector<double>
 combined_densities(const float* coords
                  , std::size_t n_rows
                  , std::vector<unsigned int> i_cols
@@ -42,7 +42,7 @@ combined_densities(const float* coords
                           , tau);
 }
 
-std::vector<float>
+std::vector<double>
 combined_densities(const float* coords
                  , std::size_t n_rows
                  , std::vector<unsigned int> i_cols
@@ -56,7 +56,6 @@ combined_densities(const float* coords
                                                      , tau
                                                  // row-major result?
                                                      , true);
-
   unsigned int n_dim = i_cols.size();
 
   std::function<
@@ -88,9 +87,13 @@ combined_densities(const float* coords
   for (unsigned int n=0; n < n_dim; ++n) {
     h_inv[n] = 1.0f/h[n];
   }
-  return dens_func(sel_coords.data()
-                 , sel_coords.size() / n_dim
-                 , h_inv);
+  // convert densities from GPU to double
+  std::vector<float> flt_dens = dens_func(sel_coords.data()
+                                        , sel_coords.size() / n_dim
+                                        , h_inv);
+  std::vector<double> dbl_dens(flt_dens.begin()
+                             , flt_dens.end());
+  return dbl_dens;
 }
 
 float

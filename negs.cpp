@@ -35,11 +35,11 @@ namespace Negs {
     using Tools::sum1_normalized;
     std::vector<float> negs(n_cols);
     for (unsigned int i=0; i < n_cols; ++i) {
-      std::vector<float> p = sum1_normalized(
-                               combined_densities(coords
-                                                , n_rows
-                                                , {i}
-                                                , {bandwidths[i]}));
+      std::vector<double> p = sum1_normalized(
+                                combined_densities(coords
+                                                 , n_rows
+                                                 , {i}
+                                                 , {bandwidths[i]}));
       for (unsigned int k=0; k < n_rows; ++k) {
         negs[i] += logfunc(p[k]) * p[k];
       }

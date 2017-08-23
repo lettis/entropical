@@ -43,6 +43,7 @@ add_subdirectory(coords_file)
 set(ENTROPICAL_SRC entropical.cpp
                    mi.cpp
                    transs.cpp
+                   autoent.cpp
                    kldiv.cpp
                    dens.cpp
                    negs.cpp

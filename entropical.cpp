@@ -16,6 +16,7 @@
 #include "tools.hpp"
 
 #include "transs.hpp"
+#include "autoent.hpp"
 #include "mi.hpp"
 #include "kldiv.hpp"
 #include "dens.hpp"
@@ -52,6 +53,7 @@ int main(int argc, char* argv[]) {
 #endif
     "modes:\n"
     "  transs:    compute transfer entropies\n"
+    "  autoent:   compute conditional entropy on own past\n"
     "  kldiv:     compute Kullback-Leibler divergences\n"
     "  mi:        compute mutual informations\n"
     "  dens:      compute local probability densities in 1, 2 or 3 dimensions\n"
@@ -64,6 +66,7 @@ int main(int argc, char* argv[]) {
     "  entropical transs -h\n\n"
   ;
   enum Mode {TRANSS
+           , AUTOENT
            , KLDIV
            , MI
            , DENS
@@ -71,6 +74,7 @@ int main(int argc, char* argv[]) {
            , AMISE
            , THUMB};
   std::map<std::string, Mode> mode_mapping {{"transs", TRANSS}
+                                          , {"autoent", AUTOENT}
                                           , {"kldiv", KLDIV}
                                           , {"mi", MI}
                                           , {"dens", DENS}
@@ -111,6 +115,19 @@ int main(int argc, char* argv[]) {
     "transs - compute transfer entropies between time series");
   opts_transs.add(opts_common);
   opts_transs.add_options()
+    ("tau,t", po::value<unsigned int>()->default_value(1),
+      "lagtime in # frames, default: 1")
+    ("bandwidths,H", po::value<std::string>()->default_value(""),
+      "bandwidths for univariate density estimation"
+      " as space separated values.")
+    ("bits,B", po::bool_switch()->default_value(false),
+      "use log2 instead of ln")
+  ;
+  // autoent
+  po::options_description opts_autoent(
+    "autoent - compute conditional entropy against own past");
+  opts_autoent.add(opts_common);
+  opts_autoent.add_options()
     ("tau,t", po::value<unsigned int>()->default_value(1),
       "lagtime in # frames, default: 1")
     ("bandwidths,H", po::value<std::string>()->default_value(""),
@@ -180,6 +197,7 @@ int main(int argc, char* argv[]) {
   po::variables_map args;
   std::map<Mode, po::options_description> opts {
     {TRANSS, opts_transs}
+  , {AUTOENT, opts_autoent}
   , {KLDIV, opts_kldiv}
   , {MI, opts_mi}
   , {DENS, opts_dens}
@@ -200,6 +218,7 @@ int main(int argc, char* argv[]) {
     // select mode ...
     std::map<Mode, std::function<void(po::variables_map)>> subroutines;
     subroutines[TRANSS] = Transs::main;
+    subroutines[AUTOENT] = AutoEnt::main;
     subroutines[MI] = Mi::main;
     subroutines[KLDIV] = KLDiv::main;
     subroutines[DENS] = Dens::main;

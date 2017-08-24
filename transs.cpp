@@ -40,59 +40,42 @@ namespace Transs {
     std::vector<std::vector<double>> p_tau(n_cols);
     std::vector<double> transs(n_cols*n_cols, 0.0);
     for (unsigned int i=0; i < n_cols; ++i) {
-      p[i] = sum1_normalized(
-              combined_densities(coords
-                               , n_rows
-                               , {i}
-                               , {bandwidths[i]}));
-      p_tau[i] = sum1_normalized(
-                   combined_densities(coords
-                                    , n_rows
-                                    , {i
-                                     , i}
-                                    , {bandwidths[i]
-                                     , bandwidths[i]}
-                                    , {0
-                                     , tau}));
+      p[i] = combined_densities(coords
+                              , n_rows
+                              , {i}
+                              , {bandwidths[i]});
+      p_tau[i] = combined_densities(coords
+                                  , n_rows
+                                  , {i
+                                   , i}
+                                  , {bandwidths[i]
+                                   , bandwidths[i]}
+                                  , {0
+                                   , tau});
     }
     for (unsigned int i=0; i < n_cols; ++i) {
       for (unsigned int j=i+1; j < n_cols; ++j) {
+        float h_i = bandwidths[i];
+        float h_j = bandwidths[j];
         std::vector<double> p_ij, p_ij_itau, p_ij_jtau;
-        p_ij = sum1_normalized(
-                 combined_densities(coords
-                                  , n_rows
-                                  , {i
-                                   , j}
-                                  , {bandwidths[i]
-                                   , bandwidths[j]}));
-        p_ij_itau = sum1_normalized(
-                      combined_densities(coords
-                                       , n_rows
-                                       , {i
-                                        , i
-                                        , j}
-                                       , {bandwidths[i]
-                                        , bandwidths[i]
-                                        , bandwidths[j]}
-                                       , {0
-                                        , tau
-                                        , 0}));
-        p_ij_jtau = sum1_normalized(
-                      combined_densities(coords
-                                       , n_rows
-                                       , {i
-                                        , j
-                                        , j}
-                                       , {bandwidths[i]
-                                        , bandwidths[j]
-                                        , bandwidths[j]}
-                                       , {0
-                                        , 0
-                                        , tau}));
+        p_ij = combined_densities(coords
+                                , n_rows
+                                , {i, j}
+                                , {h_i, h_j});
+        p_ij_itau = combined_densities(coords
+                                     , n_rows
+                                     , {i, i, j}
+                                     , {h_i, h_i, h_j}
+                                     , {0, tau, 0});
+        p_ij_jtau = combined_densities(coords
+                                     , n_rows
+                                     , {i, j, j}
+                                     , {h_i, h_j, h_j}
+                                     , {0, 0, tau});
         for (unsigned int k=0; k < n_rows-tau; ++k) {
           double te;
           if (p_ij_itau[k] > 0) {
-            te = p_ij_itau[k]
+            te = p_ij_itau[k] * h_i * h_i * h_j
                    * logfunc(p_ij_itau[k]
                            * p[i][k]
                            * Tools::inv(p_ij[k])
@@ -110,7 +93,7 @@ namespace Transs {
             }
           }
           if (p_ij_jtau[k] > 0) {
-            te = p_ij_jtau[k]
+            te = p_ij_jtau[k] * h_i * h_j * h_i
                    * logfunc(p_ij_jtau[k]
                            * p[j][k]
                            * Tools::inv(p_ij[k])

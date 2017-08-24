@@ -294,21 +294,9 @@ namespace IO {
         }
       }
     }
-//    using Tools::String::split;
-//    for (std::string h: split(bandwidths
-//                            , ' '
-//                            , true)) {
-//      hs.push_back(std::stof(h));
-//    }
     if (hs.size() != selected_cols.size()) {
       std::cerr << "error: number of given bandwidth values does not match"
                          " the number of selected columns!" << std::endl;
-//    std::cerr << "no selected columns: " << selected_cols.size() << "   ";
-//    std::cerr << "bandwidthds: ";
-//    for (auto h: hs) {
-//      std::cerr << " " << h;
-//    }
-//    std::cerr << std::endl;
       exit(EXIT_FAILURE);
     }
     return std::make_tuple(selected_cols

@@ -9,6 +9,7 @@
 #include "epa_conv.cuh"
 
 #include <functional>
+#include <algorithm>
 
 #define BSIZE 128
 
@@ -93,6 +94,13 @@ combined_densities(const float* coords
                                         , h_inv);
   std::vector<double> dbl_dens(flt_dens.begin()
                              , flt_dens.end());
+  // normalize
+  std::transform(dbl_dens.begin()
+               , dbl_dens.end()
+               , dbl_dens.begin()
+               , [n_rows] (double x) -> double {
+                   return x / (double) n_rows;
+                 });
   return dbl_dens;
 }
 

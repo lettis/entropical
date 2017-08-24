@@ -38,25 +38,21 @@ namespace AutoEnt {
     using Tools::sum1_normalized;
     std::vector<double> auto_ent(n_cols, 0.0);
     for (unsigned int i=0; i < n_cols; ++i) {
-      std::vector<double> p_itau =
-        sum1_normalized(combined_densities(coords
-                                         , n_rows
-                                         , {i}
-                                         , {bandwidths[i]}
-                                         , {tau}));
-      std::vector<double> p_i_itau =
-        sum1_normalized(combined_densities(coords
-                                         , n_rows
-                                         , {i
-                                          , i}
-                                         , {bandwidths[i]
-                                          , bandwidths[i]}
-                                         , {0
-                                          , tau}));
+      float h = bandwidths[i];
+      std::vector<double> p_itau = combined_densities(coords
+                                                    , n_rows
+                                                    , {i}
+                                                    , {h}
+                                                    , {tau});
+      std::vector<double> p_i_itau = combined_densities(coords
+                                                      , n_rows
+                                                      , {i, i}
+                                                      , {h, h}
+                                                      , {0, tau});
       for (unsigned int k=0; k < n_rows-tau; ++k) {
         if (p_i_itau[k] > 0) {
-          auto_ent[i] += p_i_itau[k]
-                           * logfunc(p_itau[k] * Tools::inv(p_i_itau[k]));
+          auto_ent[i] += p_i_itau[k] * h * h
+                           * logfunc(p_itau[k] * Tools::inv(p_i_itau[k] * h));
         }
       }
     }

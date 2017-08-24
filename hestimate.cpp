@@ -68,8 +68,8 @@ namespace Hestimate {
         float a_pivot_l = _amise(h_pivot_l);
         float a_pivot_h = _amise(h_pivot_h);
 
-std::cerr << h_pivot_l << " " << a_pivot_l << std::endl;
-std::cerr << h_pivot_h << " " << a_pivot_h << std::endl;
+//std::cerr << h_pivot_l << " " << a_pivot_l << std::endl;
+//std::cerr << h_pivot_h << " " << a_pivot_h << std::endl;
 
         if (a_pivot_l < a_pivot_h) {
           return _interval_optimized_h(prec

@@ -35,24 +35,21 @@ namespace Mi {
     using Tools::sum1_normalized;
     std::vector<float> mutinf(n_cols*n_cols);
     for (unsigned int i=0; i < n_cols; ++i) {
-      std::vector<double> p_i = sum1_normalized(
-                                  combined_densities(coords
+      std::vector<double> p_i = combined_densities(coords
                                                    , n_rows
                                                    , {i}
-                                                   , {bandwidths[i]}));
+                                                   , {bandwidths[i]});
       for (unsigned int j=i+1; j < n_cols; ++j) {
-        std::vector<double> p_j = sum1_normalized(
-                                    combined_densities(coords
+        std::vector<double> p_j = combined_densities(coords
                                                      , n_rows
                                                      , {j}
-                                                     , {bandwidths[j]}));
-        std::vector<double> p_ij = sum1_normalized(
-                                     combined_densities(coords
+                                                     , {bandwidths[j]});
+        std::vector<double> p_ij = combined_densities(coords
                                                       , n_rows
                                                       , {i
                                                        , j}
                                                       , {bandwidths[i]
-                                                       , bandwidths[j]}));
+                                                       , bandwidths[j]});
         mutinf[i*n_cols+j] = 0.0f;
         for (unsigned int k=0; k < n_rows; ++k) {
           mutinf[i*n_cols+j] += p_ij[k] * logfunc(p_ij[k] / p_i[k] / p_j[k]);
